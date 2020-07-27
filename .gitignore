@@ -1,0 +1,12 @@
+*.vim
+
+*.slo
+*.lo
+*.o
+
+# dependency files
+*.P
+*.d
+
+*.exe
+*.out
