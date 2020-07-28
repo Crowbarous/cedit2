@@ -85,8 +85,6 @@ int mesh_t::add_face (std::initializer_list<int> vert_indices)
 void mesh_t::remove_face (int face_idx)
 {
 	assert(face_exists(face_idx));
-	faces_active.clear(face_idx);
-
 	auto& vi = faces[face_idx].vert_idx;
 
 	for (int vert_idx: vi) {
@@ -101,6 +99,7 @@ void mesh_t::remove_face (int face_idx)
 	}
 
 	gpu_remove_face(face_idx);
+	faces_active.clear(face_idx);
 
 	if (face_idx == faces.size()-1)
 		faces.pop_back();

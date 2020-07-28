@@ -30,17 +30,3 @@ int warning (const char* fmt, ...)
 
 	return result;
 }
-
-uint64_t ceil_po2 (uint64_t x)
-{
-	if (x == 1)
-		return 1;
-	return 1 << (64 - __builtin_clzl(x-1));
-}
-
-uint32_t ceil_po2 (uint32_t x)
-{
-	if (x == 1)
-		return 1;
-	return 1 << (32 - __builtin_clz(x-1));
-}

@@ -38,7 +38,7 @@ void mesh_t::gpu_init ()
 			continue;
 
 		face_t& f = faces[face_idx];
-		vec3 face_normal = get_face_normal(face_idx);
+		const vec3 face_normal = get_face_normal(face_idx);
 
 		// pan triangulation; flat shading
 
@@ -81,6 +81,8 @@ void mesh_t::gpu_deinit ()
 	glDeleteBuffers(1, &gpu.vbo_id);
 	gpu.vbo_id = 0;
 
+	gpu.vbo_capacity = 0;
+
 	gpu.triangle_which_face.clear();
 	gpu.dirty_faces.clear();
 }
@@ -91,12 +93,79 @@ void mesh_t::gpu_sync ()
 		gpu_init();
 		return;
 	}
+
+	int num_triangles = gpu_get_triangles_num();
+
+	if (num_triangles > gpu.vbo_capacity) {
+		int old_capacity = gpu.vbo_capacity;
+		gpu.vbo_capacity = ceil_po2(num_triangles);
+
+		// Recreate the buffer with new capacity
+		glBindVertexArray(gpu.vao_id);
+
+		GLuint vbo_id_new;
+		glGenBuffers(1, &vbo_id_new);
+		assert(vbo_id_new > 0);
+
+		glBindBuffer(GL_ARRAY_BUFFER, vbo_id_new);
+		glBufferData(GL_ARRAY_BUFFER,
+				sizeof(gpu_triangle_t) * gpu.vbo_capacity,
+				nullptr, GL_DYNAMIC_DRAW);
+
+		// Old VBO is the source
+		glBindBuffer(GL_COPY_READ_BUFFER, gpu.vbo_id);
+
+		glCopyBufferSubData(
+				GL_COPY_READ_BUFFER, // src: old VBO bound
+				GL_ARRAY_BUFFER,     // dest: new VBO bound
+				0, 0, sizeof(gpu_triangle_t) * old_capacity);
+
+		// Delete old VBO
+		glDeleteBuffers(1, &gpu.vbo_id);
+		gpu.vbo_id = vbo_id_new;
+	}
+
+	if (gpu.dirty_faces.empty())
+		return;
+
+	glBindVertexArray(gpu.vao_id);
+	gpu_triangle_t* buf_data = (gpu_triangle_t*)
+		glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+	assert(buf_data != nullptr);
+
+	for (int face_idx: gpu.dirty_faces) {
+		assert(face_exists(face_idx));
+
+		face_t& f = faces[face_idx];
+		assert(f.gpu_triangles.size() == f.vert_idx.size()-2);
+
+		const vec3 face_normal = get_face_normal(face_idx);
+		const auto& vi = f.vert_idx;
+
+		auto make_vert = [&] (int i) -> gpu_vert_t {
+			return { .position = verts[vi[i]].position,
+				 .normal = face_normal };
+		};
+
+		for (int i = 2; i < vi.size(); i++) {
+			buf_data[f.gpu_triangles[i-2]] =
+				{ make_vert(0),
+				  make_vert(i),
+				  make_vert(i-1) };
+		}
+	}
+
+	gpu.dirty_faces.clear();
+
+	GLboolean unmap_ok = glUnmapBuffer(GL_ARRAY_BUFFER);
+	assert(unmap_ok == GL_TRUE);
 }
 
 void mesh_t::gpu_add_face (int face_idx)
 {
 	if (!gpu_initialized())
 		return;
+
 	assert(face_exists(face_idx));
 
 	face_t& f = faces[face_idx];
@@ -108,7 +177,7 @@ void mesh_t::gpu_add_face (int face_idx)
 	int old_num_tris = gpu_get_triangles_num();
 	int new_num_tris = old_num_tris + face_num_tris;
 
-	// append this face's triangles to the end of the buffer
+	// Append this face's triangles to the end of the buffer
 
 	gpu.triangle_which_face.resize(new_num_tris);
 
@@ -127,6 +196,8 @@ void mesh_t::gpu_remove_face (int face_idx)
 		return;
 	assert(face_exists(face_idx));
 
+	gpu.dirty_faces.erase(face_idx);
+
 	face_t& f = faces[face_idx];
 	int face_num_tris = f.gpu_triangles.size();
 	assert(face_num_tris == f.vert_idx.size()-2);
@@ -139,26 +210,36 @@ void mesh_t::gpu_remove_face (int face_idx)
 	// where this face's triangles used to be
 
 	std::set<int> faces_affected;
+	for (int i = new_num_tris; i < old_num_tris; i++) {
+		int other_face_idx = gpu.triangle_which_face[i];
+		if (other_face_idx != face_idx)
+			faces_affected.insert(other_face_idx);
+	}
 
-	for (int i = new_num_tris; i < old_num_tris; i++)
-		faces_affected.insert(gpu.triangle_which_face[i]);
+	if (faces_affected.empty()) {
+		// this face itself was at the end after all
+		f.gpu_triangles.clear();
+	} else {
+		for (int other_face_idx: faces_affected) {
+			assert(face_exists(other_face_idx));
+			gpu_mark_face_dirty(other_face_idx);
 
-	for (int other_face_idx: faces_affected) {
-		assert(face_exists(other_face_idx));
-		gpu_mark_face_dirty(other_face_idx);
+			for (int& tri_idx: faces[other_face_idx].gpu_triangles) {
+				if (tri_idx < new_num_tris)
+					continue;
 
-		for (int& tri_idx: faces[other_face_idx].gpu_triangles) {
-			if (tri_idx >= new_num_tris) {
+				// Triangle indices past `new_num_tris` need to be replaced
 				tri_idx = f.gpu_triangles.back();
 				f.gpu_triangles.pop_back();
 				gpu.triangle_which_face[tri_idx] = other_face_idx;
 			}
 		}
+
+		assert(f.gpu_triangles.empty());
 	}
 
+	// Shrink the buffer
 	gpu.triangle_which_face.resize(new_num_tris);
-
-	assert(f.gpu_triangles.empty());
 }
 
 void mesh_t::gpu_draw () const

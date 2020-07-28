@@ -43,7 +43,6 @@ KEY_FUNC (keybind_change_mesh)
 	if (!pressed)
 		return;
 	viewport.mesh->remove_vert(7);
-	viewport.mesh->gpu_deinit();
 }
 
 KEY_FUNC (keybind_print_mesh)
