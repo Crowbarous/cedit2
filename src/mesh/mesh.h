@@ -118,6 +118,8 @@ private:
 			  .normalize = true };
 	} gpu;
 
+	void gpu_apply_attributes_to_vao () const;
+
 	int gpu_get_triangles_num () const;
 	int gpu_get_triangles_capacity () const;
 

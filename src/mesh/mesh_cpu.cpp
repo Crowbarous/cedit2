@@ -4,36 +4,6 @@
 #include <cassert>
 #include <cstdio>
 
-void mesh_add_cuboid (mesh_t& m, vec3 center, vec3 side_len)
-{
-	int vert_ids[8];
-
-	side_len *= 0.5;
-	const vec3 low = center - side_len;
-	const vec3 high = center + side_len;
-
-	for (int i = 0; i < 8; i++) {
-		vert_ids[i] = m.add_vert(
-				{ (i & 1 ? low : high).x,
-				  (i & 2 ? low : high).y,
-				  (i & 4 ? low : high).z });
-	}
-
-	auto quad = [&] (int a, int b, int c, int d) {
-		m.add_face({ vert_ids[a],
-		             vert_ids[b],
-		             vert_ids[c],
-		             vert_ids[d] });
-	};
-
-	quad(0, 2, 3, 1);
-	quad(0, 1, 5, 4);
-	quad(0, 4, 6, 2);
-	quad(7, 5, 1, 3);
-	quad(7, 3, 2, 6);
-	quad(7, 6, 4, 5);
-}
-
 int mesh_t::add_vert (vec3 pos)
 {
 	int idx = verts_active.set_first_cleared();
@@ -182,4 +152,35 @@ void mesh_t::debug_dump_info () const
 	fprintf(stream, "GPU data: VAO %i, VBO %i, actual tris: %i, capacity: %i\n",
 			gpu.vao_id, gpu.vbo_id,
 			gpu_get_triangles_num(), gpu_get_triangles_capacity());
+}
+
+
+void mesh_add_cuboid (mesh_t& m, vec3 center, vec3 side_len)
+{
+	int vert_ids[8];
+
+	side_len *= 0.5;
+	const vec3 low = center - side_len;
+	const vec3 high = center + side_len;
+
+	for (int i = 0; i < 8; i++) {
+		vert_ids[i] = m.add_vert(
+				{ (i & 1 ? low : high).x,
+				  (i & 2 ? low : high).y,
+				  (i & 4 ? low : high).z });
+	}
+
+	auto quad = [&] (int a, int b, int c, int d) {
+		m.add_face({ vert_ids[a],
+		             vert_ids[b],
+		             vert_ids[c],
+		             vert_ids[d] });
+	};
+
+	quad(0, 2, 3, 1);
+	quad(0, 1, 5, 4);
+	quad(0, 4, 6, 2);
+	quad(7, 5, 1, 3);
+	quad(7, 3, 2, 6);
+	quad(7, 6, 4, 5);
 }

@@ -42,7 +42,10 @@ KEY_FUNC (keybind_change_mesh)
 {
 	if (!pressed)
 		return;
-	viewport.mesh->remove_vert(7);
+
+	static float z = -5.0;
+	mesh_add_cuboid(*viewport.mesh, vec3(-2.0, -2.0, z), vec3(1.3));
+	z += 2.0;
 }
 
 KEY_FUNC (keybind_print_mesh)

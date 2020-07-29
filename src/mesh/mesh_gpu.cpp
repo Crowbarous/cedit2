@@ -69,6 +69,11 @@ void mesh_t::gpu_init ()
 			sizeof(gpu_triangle_t) * gpu.vbo_capacity,
 			buffer_data.data(), GL_DYNAMIC_DRAW);
 
+	gpu_apply_attributes_to_vao();
+}
+
+void mesh_t::gpu_apply_attributes_to_vao () const
+{
 	gpu.va_pos.send_attrib(sizeof(gpu_vert_t), offsetof(gpu_vert_t, position));
 	gpu.va_norm.send_attrib(sizeof(gpu_vert_t), offsetof(gpu_vert_t, normal));
 }
@@ -97,8 +102,13 @@ void mesh_t::gpu_sync ()
 	int num_triangles = gpu_get_triangles_num();
 
 	if (num_triangles > gpu.vbo_capacity) {
+		// We have to grow the VBO
+
 		int old_capacity = gpu.vbo_capacity;
 		gpu.vbo_capacity = ceil_po2(num_triangles);
+
+		warning("Growth %i -> %i, size %i",
+				old_capacity, gpu.vbo_capacity, num_triangles);
 
 		// Recreate the buffer with new capacity
 		glBindVertexArray(gpu.vao_id);
@@ -123,6 +133,8 @@ void mesh_t::gpu_sync ()
 		// Delete old VBO
 		glDeleteBuffers(1, &gpu.vbo_id);
 		gpu.vbo_id = vbo_id_new;
+
+		gpu_apply_attributes_to_vao();
 	}
 
 	if (gpu.dirty_faces.empty())
@@ -245,7 +257,8 @@ void mesh_t::gpu_remove_face (int face_idx)
 void mesh_t::gpu_draw () const
 {
 	glBindVertexArray(gpu.vao_id);
-	glDrawArrays(GL_TRIANGLES, 0, 3 * gpu.triangle_which_face.size());
+	glBindBuffer(GL_ARRAY_BUFFER, gpu.vbo_id);
+	glDrawArrays(GL_TRIANGLES, 0, 3 * gpu_get_triangles_num());
 }
 
 int mesh_t::gpu_get_triangles_num () const

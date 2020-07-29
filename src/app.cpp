@@ -15,7 +15,7 @@ void app_init ()
 	viewport.mesh = &some_mesh;
 	viewport.set_size(0, 0, 640, 480);
 
-	constexpr int side = 2;
+	constexpr int side = 1;
 	constexpr float spacing = 2.0;
 	constexpr float cube_size = 1.5;
 	for (int i = 0; i < side*side*side; i++) {

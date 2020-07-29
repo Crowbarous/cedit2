@@ -14,7 +14,7 @@ WARNINGS = \
 ENGINE-FLAGS =
 
 CC = g++
-CFLAGS = -Og -g $(WARNINGS) --std=gnu++17 -Isrc -fmax-errors=1
+override CFLAGS += -Og -g $(WARNINGS) --std=gnu++17 -Isrc -fmax-errors=1
 
 FILES-CPP = $(shell find src/ -type f -name "*.cpp")
 FILES-O = $(FILES-CPP:$(SRC)/%.cpp=$(BIN)/%.o)
@@ -67,3 +67,7 @@ $(BIN)/glew.o: include/GL/glew.c
 run: all
 	@echo "Running:"
 	$(EXEC) $(ENGINE-FLAGS)
+
+gdb: all
+	@echo "Debugging:"
+	gdb $(EXEC)
