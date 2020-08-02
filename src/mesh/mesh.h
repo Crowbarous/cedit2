@@ -91,8 +91,18 @@ private:
 	struct gpu_info_t {
 		/* We don't use index buffers because we want flat shading */
 		GLuint vao_id = 0; /* Zero indicates mesh not being uploaded */
+
+		/* The vertex buffer (no indexing!) */
 		GLuint vbo_id = 0;
 		int vbo_capacity; /* The actual size of VBO */
+		gpu_triangle_t* vbo_mapped = nullptr; /* VBO mapped WRITE-ONLY in RAM */
+
+		constexpr static GLbitfield vbo_alloc_flags =
+			GL_DYNAMIC_STORAGE_BIT | GL_MAP_WRITE_BIT |
+			GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
+		constexpr static GLbitfield vbo_map_flags =
+			GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT |
+			GL_MAP_COHERENT_BIT | GL_MAP_FLUSH_EXPLICIT_BIT;
 
 		/*
 		 * For each triangle, store to which face it belongs.
@@ -122,6 +132,8 @@ private:
 
 	int gpu_get_triangles_num () const;
 	int gpu_get_triangles_capacity () const;
+
+	void gpu_grow_vbo (int new_capacity);
 
 	void gpu_add_face (int idx);
 	void gpu_remove_face (int idx);

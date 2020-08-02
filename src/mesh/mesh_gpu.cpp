@@ -65,9 +65,16 @@ void mesh_t::gpu_init ()
 	gpu.vbo_capacity = ceil_po2(buffer_data.size());
 	buffer_data.reserve(gpu.vbo_capacity);
 
-	glBufferData(GL_ARRAY_BUFFER,
+	glBufferStorage(GL_ARRAY_BUFFER,
 			sizeof(gpu_triangle_t) * gpu.vbo_capacity,
-			buffer_data.data(), GL_DYNAMIC_DRAW);
+			buffer_data.data(),
+			gpu.vbo_alloc_flags);
+
+	gpu.vbo_mapped = (gpu_triangle_t*) glMapBufferRange(
+			GL_ARRAY_BUFFER,
+			0, sizeof(gpu_triangle_t) * gpu.vbo_capacity,
+			gpu.vbo_map_flags);
+	assert(gpu.vbo_mapped != nullptr);
 
 	gpu_apply_attributes_to_vao();
 }
@@ -101,46 +108,13 @@ void mesh_t::gpu_sync ()
 
 	int num_triangles = gpu_get_triangles_num();
 
-	if (num_triangles > gpu.vbo_capacity) {
-		// We have to grow the VBO
-
-		int old_capacity = gpu.vbo_capacity;
-		gpu.vbo_capacity = ceil_po2(num_triangles);
-
-		// Recreate the buffer with new capacity
-		glBindVertexArray(gpu.vao_id);
-
-		GLuint vbo_id_new;
-		glGenBuffers(1, &vbo_id_new);
-		assert(vbo_id_new > 0);
-
-		glBindBuffer(GL_ARRAY_BUFFER, vbo_id_new);
-		glBufferData(GL_ARRAY_BUFFER,
-				sizeof(gpu_triangle_t) * gpu.vbo_capacity,
-				nullptr, GL_DYNAMIC_DRAW);
-
-		// Copy in the data: old VBO is the source
-		glBindBuffer(GL_COPY_READ_BUFFER, gpu.vbo_id);
-
-		glCopyBufferSubData(
-				GL_COPY_READ_BUFFER, // src: old VBO bound
-				GL_ARRAY_BUFFER,     // dest: new VBO bound
-				0, 0, sizeof(gpu_triangle_t) * old_capacity);
-
-		// Delete old VBO
-		glDeleteBuffers(1, &gpu.vbo_id);
-		gpu.vbo_id = vbo_id_new;
-
-		gpu_apply_attributes_to_vao();
-	}
+	if (num_triangles > gpu.vbo_capacity)
+		gpu_grow_vbo(ceil_po2(num_triangles));
 
 	if (gpu.dirty_faces.empty())
 		return;
 
-	glBindVertexArray(gpu.vao_id);
-	gpu_triangle_t* buf_data = (gpu_triangle_t*)
-		glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-	assert(buf_data != nullptr);
+	glBindBuffer(GL_ARRAY_BUFFER, gpu.vbo_id);
 
 	for (int face_idx: gpu.dirty_faces) {
 		assert(face_exists(face_idx));
@@ -157,17 +131,60 @@ void mesh_t::gpu_sync ()
 		};
 
 		for (int i = 2; i < vi.size(); i++) {
-			buf_data[f.gpu_triangles[i-2]] =
+			gpu.vbo_mapped[f.gpu_triangles[i-2]] =
 				{ make_vert(0),
 				  make_vert(i),
 				  make_vert(i-1) };
 		}
 	}
 
-	gpu.dirty_faces.clear();
+	glFlushMappedBufferRange(GL_ARRAY_BUFFER,
+			0, sizeof(gpu_triangle_t) * gpu.vbo_capacity);
 
+	gpu.dirty_faces.clear();
+}
+
+void mesh_t::gpu_grow_vbo (int new_capacity)
+{
+	int old_capacity = gpu.vbo_capacity;
+	gpu.vbo_capacity = new_capacity;
+
+	// Unmap the old buffer
+	glBindBuffer(GL_ARRAY_BUFFER, gpu.vbo_id);
 	GLboolean unmap_ok = glUnmapBuffer(GL_ARRAY_BUFFER);
 	assert(unmap_ok == GL_TRUE);
+
+	// Create a new buffer with new capacity
+	GLuint vbo_id_new;
+	glGenBuffers(1, &vbo_id_new);
+	assert(vbo_id_new > 0);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_id_new);
+	glBufferStorage(GL_ARRAY_BUFFER,
+			sizeof(gpu_triangle_t) * gpu.vbo_capacity,
+			nullptr, // Can't init from mapped ptr because it was write only
+			gpu.vbo_alloc_flags);
+
+	// Copy in the data from old VBO
+	glBindBuffer(GL_COPY_READ_BUFFER, gpu.vbo_id);
+	glCopyBufferSubData(
+			GL_COPY_READ_BUFFER, // src: old VBO, bound
+			GL_ARRAY_BUFFER,     // dest: new VBO, bound
+			0, 0, sizeof(gpu_triangle_t) * old_capacity);
+
+	// Map the new buffer
+	gpu.vbo_mapped = (gpu_triangle_t*) glMapBufferRange(
+			GL_ARRAY_BUFFER,
+			0, sizeof(gpu_triangle_t) * gpu.vbo_capacity,
+			gpu.vbo_map_flags);
+	assert(gpu.vbo_mapped != nullptr);
+
+	// Update attribute pointers
+	glBindVertexArray(gpu.vao_id);
+	gpu_apply_attributes_to_vao();
+
+	// Delete old VBO
+	glDeleteBuffers(1, &gpu.vbo_id);
+	gpu.vbo_id = vbo_id_new;
 }
 
 void mesh_t::gpu_add_face (int face_idx)
