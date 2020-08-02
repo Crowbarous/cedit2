@@ -10,12 +10,7 @@
 /* Various constants regarding OpenGL */
 namespace gl_constants
 {
-	constexpr bool DEBUG =
-#ifdef NDEBUG
-		false;
-#else
-		true;
-#endif
+	constexpr bool DEBUG = false;
 
 	constexpr int VER_MAJOR = 3;
 	constexpr int VER_MINOR = 3;
@@ -28,6 +23,8 @@ namespace gl_constants
 }
 
 void render_init ();
+void render_deinit ();
+
 void render_frame ();
 void render_resize_window (int w, int h);
 
@@ -42,7 +39,7 @@ struct vert_attribute_t {
 	GLenum data_type;      /* GL_FLOAT etc. */
 	bool normalize;
 
-	/* 
+	/*
 	 * Stride and offset are the concern of the whole mesh format,
 	 * rather than a single attribute, so receive them by argument
 	 */

@@ -15,6 +15,8 @@ int main ()
 		render_frame();
 	}
 
+	app_deinit();
+	render_deinit();
+
 	return 0;
 }
-

@@ -107,9 +107,6 @@ void mesh_t::gpu_sync ()
 		int old_capacity = gpu.vbo_capacity;
 		gpu.vbo_capacity = ceil_po2(num_triangles);
 
-		warning("Growth %i -> %i, size %i",
-				old_capacity, gpu.vbo_capacity, num_triangles);
-
 		// Recreate the buffer with new capacity
 		glBindVertexArray(gpu.vao_id);
 
@@ -122,7 +119,7 @@ void mesh_t::gpu_sync ()
 				sizeof(gpu_triangle_t) * gpu.vbo_capacity,
 				nullptr, GL_DYNAMIC_DRAW);
 
-		// Old VBO is the source
+		// Copy in the data: old VBO is the source
 		glBindBuffer(GL_COPY_READ_BUFFER, gpu.vbo_id);
 
 		glCopyBufferSubData(
@@ -257,7 +254,6 @@ void mesh_t::gpu_remove_face (int face_idx)
 void mesh_t::gpu_draw () const
 {
 	glBindVertexArray(gpu.vao_id);
-	glBindBuffer(GL_ARRAY_BUFFER, gpu.vbo_id);
 	glDrawArrays(GL_TRIANGLES, 0, 3 * gpu_get_triangles_num());
 }
 

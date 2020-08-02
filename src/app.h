@@ -5,6 +5,7 @@
 #include "mesh/mesh.h"
 
 void app_init ();
+void app_deinit ();
 void app_update ();
 
 struct viewport3d_t {

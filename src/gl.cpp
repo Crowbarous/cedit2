@@ -68,6 +68,12 @@ void render_init ()
 	init_mesh();
 }
 
+void render_deinit ()
+{
+	SDL_Quit();
+}
+
+
 void render_frame ()
 {
 	glViewport(0, 0, rctx.res_x, rctx.res_y);

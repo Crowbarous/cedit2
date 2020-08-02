@@ -27,6 +27,13 @@ void app_init ()
 	}
 }
 
+void app_deinit ()
+{
+	if (viewport.mesh->gpu_initialized())
+		viewport.mesh->gpu_deinit();
+}
+
+
 move_flags_t camera_move_flags;
 bool camera_is_moving ()
 {
