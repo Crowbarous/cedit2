@@ -52,8 +52,8 @@ void mesh_t::gpu_init ()
 		for (int i = 2; i < vi.size(); i++) {
 			buffer_data.push_back(
 					{ make_vert(0),
-					  make_vert(i),
-					  make_vert(i-1) });
+					  make_vert(i-1),
+					  make_vert(i) });
 
 			int tri_idx = gpu.triangle_which_face.size();
 			f.gpu_triangles.push_back(tri_idx);
@@ -89,6 +89,11 @@ void mesh_t::gpu_deinit ()
 {
 	glDeleteVertexArrays(1, &gpu.vao_id);
 	gpu.vao_id = 0;
+
+	glBindBuffer(GL_ARRAY_BUFFER, gpu.vbo_id);
+	GLboolean unmap_ok = glUnmapBuffer(GL_ARRAY_BUFFER);
+	assert(unmap_ok);
+	gpu.vbo_mapped = nullptr;
 
 	glDeleteBuffers(1, &gpu.vbo_id);
 	gpu.vbo_id = 0;
@@ -133,8 +138,8 @@ void mesh_t::gpu_sync ()
 		for (int i = 2; i < vi.size(); i++) {
 			gpu.vbo_mapped[f.gpu_triangles[i-2]] =
 				{ make_vert(0),
-				  make_vert(i),
-				  make_vert(i-1) };
+				  make_vert(i-1),
+				  make_vert(i) };
 		}
 	}
 
@@ -174,7 +179,7 @@ void mesh_t::gpu_grow_vbo (int new_capacity)
 	// Map the new buffer
 	gpu.vbo_mapped = (gpu_triangle_t*) glMapBufferRange(
 			GL_ARRAY_BUFFER,
-			0, sizeof(gpu_triangle_t) * gpu.vbo_capacity,
+			0, sizeof(gpu_triangle_t) * new_capacity,
 			gpu.vbo_map_flags);
 	assert(gpu.vbo_mapped != nullptr);
 

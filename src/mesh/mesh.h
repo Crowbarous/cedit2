@@ -22,6 +22,8 @@ struct mesh_diff_t;
 
 class mesh_t {
 public:
+	void clear (); /* Make the mesh completely empty */
+
 	/* Returned: index of the newly added element */
 	int add_vert (vec3 pos);
 	int add_face (const int* vert_indices, int num_verts);
@@ -141,5 +143,7 @@ private:
 };
 
 void mesh_add_cuboid (mesh_t& mesh, vec3 center, vec3 side_lengths);
+void mesh_load_obj (mesh_t& mesh, const std::string& filepath,
+		mat4 vert_transform = mat4(1.0));
 
 #endif // MESH_H

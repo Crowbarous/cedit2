@@ -15,16 +15,12 @@ void app_init ()
 	viewport.mesh = &some_mesh;
 	viewport.set_size(0, 0, 640, 480);
 
-	constexpr int side = 1;
-	constexpr float spacing = 2.0;
-	constexpr float cube_size = 1.5;
-	for (int i = 0; i < side*side*side; i++) {
-		vec3 pos((i % side - side * 0.5),
-			((i / side) % side - side * 0.5),
-			(i / (side*side) - side * 0.5));
-		pos *= spacing;
-		mesh_add_cuboid(*viewport.mesh, pos, vec3(cube_size));
-	}
+	using namespace glm;
+	mesh_load_obj(*viewport.mesh, "car.obj",
+			scale(mat4(1.0), vec3(0.05)));
+	mesh_load_obj(*viewport.mesh, "car.obj",
+			translate(scale(mat4(1.0), vec3(0.06)),
+				vec3(0.0, 0.0, 10.0)));
 }
 
 void app_deinit ()
@@ -40,7 +36,7 @@ bool camera_is_moving ()
 	return (camera_move_flags.forward != camera_move_flags.backward)
 	    || (camera_move_flags.left != camera_move_flags.right);
 }
- 
+
 void app_update ()
 {
 	if (camera_is_moving()) {

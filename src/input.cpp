@@ -5,6 +5,7 @@
 #include <map>
 
 bool app_quit;
+bool app_mousegrab = false;
 std::map<SDL_Scancode, keybind_t> keybinds;
 
 KEY_FUNC (keybind_quit)
@@ -56,6 +57,9 @@ KEY_FUNC (keybind_print_mesh)
 
 void mouse_bind (int x, int y, int dx, int dy)
 {
+	if (!app_mousegrab)
+		return;
+
 	const float sens = 0.3;
 	vec3& ang = viewport.camera.angles;
 	ang += sens * vec3(-dy, -dx, 0.0);
@@ -65,6 +69,14 @@ void mouse_bind (int x, int y, int dx, int dy)
 		ang.x = -90.0 + epsilon;
 	if (ang.x > 90.0)
 		ang.x = 90.0 - epsilon;
+}
+
+KEY_FUNC (keybind_toggle_mousegrab)
+{
+	if (!pressed)
+		return;
+	app_mousegrab ^= true;
+	SDL_SetRelativeMouseMode(app_mousegrab ? SDL_TRUE : SDL_FALSE);
 }
 
 void input_init ()
@@ -83,7 +95,7 @@ void input_init ()
 	keybinds[SDL_SCANCODE_LCTRL] = { keybind_camera_move, (void*) 'S' };
 	keybinds[SDL_SCANCODE_LSHIFT] = { keybind_camera_move, (void*) 'F' };
 
-	SDL_SetRelativeMouseMode(SDL_TRUE);
+	keybinds[SDL_SCANCODE_Z] = { keybind_toggle_mousegrab, nullptr };
 }
 
 void input_handle_events ()

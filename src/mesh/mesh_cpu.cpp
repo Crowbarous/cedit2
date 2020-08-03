@@ -3,6 +3,19 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
+#include <fstream>
+
+void mesh_t::clear ()
+{
+	verts.clear();
+	verts_active.clear_all();
+
+	faces.clear();
+	faces_active.clear_all();
+
+	if (gpu_initialized())
+		gpu_deinit();
+}
 
 int mesh_t::add_vert (vec3 pos)
 {
@@ -177,10 +190,67 @@ void mesh_add_cuboid (mesh_t& m, vec3 center, vec3 side_len)
 		             vert_ids[d] });
 	};
 
-	quad(0, 2, 3, 1);
-	quad(0, 1, 5, 4);
-	quad(0, 4, 6, 2);
-	quad(7, 5, 1, 3);
-	quad(7, 3, 2, 6);
-	quad(7, 6, 4, 5);
+	quad(0, 1, 3, 2);
+	quad(0, 4, 5, 1);
+	quad(0, 2, 6, 4);
+	quad(7, 3, 1, 5);
+	quad(7, 6, 2, 3);
+	quad(7, 5, 4, 6);
+}
+
+void mesh_load_obj (mesh_t& m, const std::string& filepath, mat4 vert_transform)
+{
+	std::ifstream f(filepath);
+	if (!f)
+		fatal("Cannot open %s to load OBJ", filepath.c_str());
+
+	std::vector<int> vert_indices;
+
+	auto pack_chars = [] (const char* s) constexpr -> uint16_t {
+		return (s[0] << 8) | s[1];
+	};
+
+	for (std::string line; std::getline(f, line); ) {
+		int comment = line.find('#');
+		if (comment != std::string::npos)
+			line.erase(comment);
+		if (line.size() < 2)
+			continue;
+
+		const char* s = line.c_str();
+
+		switch (pack_chars(s)) {
+		case pack_chars("v "): {
+			// vertex
+			vec4 pos;
+			sscanf(s, "%*s%f%f%f", &pos.x, &pos.y, &pos.z);
+			pos.w = 1.0;
+
+			pos = vert_transform * pos;
+			vec3 pos3 = { pos.x, pos.y, pos.z };
+
+			vert_indices.push_back(m.add_vert(pos3));
+			break;
+		}
+		case pack_chars("f "): {
+			// face
+
+			s++; // skip 'f '
+			std::vector<int> face_verts;
+			int shift;
+			int idx;
+
+			while (sscanf(s, "%i%*s%n", &idx, &shift) > 0) {
+				face_verts.push_back(vert_indices[idx-1]);
+				s += shift;
+			}
+
+			m.add_face(face_verts.data(), face_verts.size());
+			break;
+		}
+		default:
+			// don't care
+			break;
+		}
+	}
 }
