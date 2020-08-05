@@ -10,8 +10,6 @@
 /* Various constants regarding OpenGL */
 namespace gl_constants
 {
-	constexpr bool DEBUG = false;
-
 	constexpr int VER_MAJOR = 3;
 	constexpr int VER_MINOR = 3;
 
@@ -21,6 +19,8 @@ namespace gl_constants
 	constexpr bool MULTISAMPLE = false;
 	constexpr bool MULTISAMPLE_SAMPLES = 4;
 }
+
+extern bool app_debug_opengl;
 
 void render_init ();
 void render_deinit ();

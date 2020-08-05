@@ -3,8 +3,10 @@
 #include "input.h"
 #include "app.h"
 
-int main ()
+int main (int argc, char** argv)
 {
+	input_parse_cmdline_options(argc, argv);
+
 	render_init();
 	input_init();
 	app_init();

@@ -11,7 +11,7 @@ WARNINGS = \
 	-Wno-attributes \
 	-Wno-cast-function-type \
 	-Wshadow
-ENGINE-FLAGS =
+APP-FLAGS =
 
 CC = g++
 override CFLAGS += -Og -g $(WARNINGS) --std=gnu++17 -Isrc -fmax-errors=1
@@ -66,7 +66,7 @@ $(BIN)/glew.o: include/GL/glew.c
 
 run: all
 	@echo "Running:"
-	$(EXEC) $(ENGINE-FLAGS)
+	$(EXEC) $(APP-FLAGS)
 
 gdb: all
 	@echo "Debugging:"

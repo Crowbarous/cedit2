@@ -111,15 +111,17 @@ void mesh_t::gpu_sync ()
 		return;
 	}
 
-	int num_triangles = gpu_get_triangles_num();
-
-	if (num_triangles > gpu.vbo_capacity)
-		gpu_grow_vbo(ceil_po2(num_triangles));
-
 	if (gpu.dirty_faces.empty())
 		return;
 
+	int num_tris = gpu_get_triangles_num();
+	if (num_tris > gpu.vbo_capacity)
+		gpu_grow_vbo(ceil_po2(num_tris));
+
 	glBindBuffer(GL_ARRAY_BUFFER, gpu.vbo_id);
+
+	int dirty_area_min = gpu.vbo_capacity;
+	int dirty_area_max = -1;
 
 	for (int face_idx: gpu.dirty_faces) {
 		assert(face_exists(face_idx));
@@ -136,15 +138,25 @@ void mesh_t::gpu_sync ()
 		};
 
 		for (int i = 2; i < vi.size(); i++) {
-			gpu.vbo_mapped[f.gpu_triangles[i-2]] =
+			int tri_idx = f.gpu_triangles[i-2];
+
+			gpu.vbo_mapped[tri_idx] =
 				{ make_vert(0),
 				  make_vert(i-1),
 				  make_vert(i) };
+
+			dirty_area_min = std::min(dirty_area_min, tri_idx);
+			dirty_area_max = std::max(dirty_area_max, tri_idx + 1);
 		}
 	}
 
+	assert(dirty_area_max > dirty_area_min
+	    && dirty_area_min >= 0
+	    && dirty_area_max <= gpu.vbo_capacity);
+
 	glFlushMappedBufferRange(GL_ARRAY_BUFFER,
-			0, sizeof(gpu_triangle_t) * gpu.vbo_capacity);
+			sizeof(gpu_triangle_t) * dirty_area_min,
+			sizeof(gpu_triangle_t) * (dirty_area_max - dirty_area_min));
 
 	gpu.dirty_faces.clear();
 }

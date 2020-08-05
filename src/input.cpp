@@ -44,7 +44,10 @@ KEY_FUNC (keybind_change_mesh)
 	if (!pressed)
 		return;
 	static float z = -5.0;
-	mesh_add_cuboid(*viewport.mesh, vec3(-2.0, -2.0, z), vec3(1.3));
+
+	mesh_load_obj(*viewport.mesh, "car.obj",
+			scale(translate(mat4(1.0), vec3(2.0, 2.0, z)),
+				vec3(0.04)));
 	z += 2.0;
 }
 
@@ -146,4 +149,33 @@ void input_handle_events ()
 			break;
 		}
 	} while (SDL_PollEvent(&e));
+}
+
+
+struct boolean_flag_t {
+	const char* name;
+	bool* flag_ptr;
+	bool value_if_present;
+};
+const static boolean_flag_t cmdline_flags[] = {
+	{ "debug-opengl", &app_debug_opengl, true },
+};
+constexpr int num_flags = sizeof(cmdline_flags) / sizeof(boolean_flag_t);
+
+void input_parse_cmdline_options (int argc, char** argv)
+{
+	for (int i = 1; i < argc; i++) {
+		const char* str = argv[i];
+		if (*str != '-')
+			continue;
+		str++;
+
+		for (int j = 0; j < num_flags; j++) {
+			const boolean_flag_t& flag = cmdline_flags[j];
+			if (strcmp(str, flag.name) == 0) {
+				*flag.flag_ptr = flag.value_if_present;
+				break;
+			}
+		}
+	}
 }

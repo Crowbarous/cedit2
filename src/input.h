@@ -1,6 +1,8 @@
 #ifndef INPUT_H
 #define INPUT_H
 
+void input_parse_cmdline_options (int argc, char** argv);
+
 void input_init ();
 void input_handle_events ();
 
