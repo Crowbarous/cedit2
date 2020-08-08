@@ -41,5 +41,8 @@ std::ostream& debug_print_container (const T& v, std::ostream& s)
 	return s << ']';
 }
 
+bool str_any_of (const char* needle,
+		std::initializer_list<const char*> haystack);
+
 #endif // UTIL_H
 

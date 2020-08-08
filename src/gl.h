@@ -15,12 +15,10 @@ namespace gl_constants
 
 	constexpr const char* PATH_SHADER = "shader/";
 	constexpr bool GLSL_FILENAME_IN_LINE_DIRECTIVE = true;
-
-	constexpr bool MULTISAMPLE = false;
-	constexpr bool MULTISAMPLE_SAMPLES = 4;
 }
 
-extern bool app_debug_opengl;
+extern bool app_opengl_debug;
+extern int app_opengl_msaa;
 
 void render_init ();
 void render_deinit ();

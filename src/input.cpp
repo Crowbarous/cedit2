@@ -152,28 +152,84 @@ void input_handle_events ()
 }
 
 
-struct boolean_flag_t {
-	const char* name;
-	bool* flag_ptr;
-	bool value_if_present;
+enum cmdline_flag_type_t {
+	BOOL_TRUE,
+	BOOL_FALSE,
+	INT_VAL,
+	FLOAT_VAL,
 };
-const static boolean_flag_t cmdline_flags[] = {
-	{ "debug-opengl", &app_debug_opengl, true },
-};
-constexpr int num_flags = sizeof(cmdline_flags) / sizeof(boolean_flag_t);
 
-void input_parse_cmdline_options (int argc, char** argv)
+struct cmdline_flag_t {
+	const char* name;
+	cmdline_flag_type_t type;
+	void* variable;
+};
+
+const static cmdline_flag_t cmdline_flags[] = {
+	{ "opengl-debug", BOOL_TRUE, &app_opengl_debug },
+	{ "opengl-msaa", INT_VAL, &app_opengl_msaa },
+};
+
+constexpr int cmdline_flag_nr = sizeof(cmdline_flags) / sizeof(cmdline_flag_t);
+
+static void set_cmdline_flag (const cmdline_flag_t& f, const char* value)
 {
-	for (int i = 1; i < argc; i++) {
-		const char* str = argv[i];
-		if (*str != '-')
-			continue;
+	bool bool_val = true;
+	switch (f.type) {
+	case BOOL_FALSE:
+		bool_val = false;
+		// Fallthrough
+	case BOOL_TRUE:
+		if (value != nullptr) {
+			if (str_any_of(value, { "true", "yes", "1" }))
+				bool_val = true;
+			else if (str_any_of(value, { "false", "no", "0" }))
+				bool_val = false;
+			else
+				fatal("Option --%s is boolean", f.name);
+		}
+		*((bool*) f.variable) = bool_val;
+		break;
+	case INT_VAL:
+		if (value == nullptr) {
+			fatal("Option --%s requires an integer argument",
+					f.name);
+		}
+		*((int*) f.variable) = atoi(value);
+		break;
+	case FLOAT_VAL:
+		if (value == nullptr) {
+			fatal("Option --%s requires a floating point argument",
+					f.name);
+		}
+		*((float*) f.variable) = atoi(value);
+	}
+
+}
+
+void input_parse_cmdline_option (const char* str)
+{
+	if (*str != '-')
+		return;
+
+	// skip - or --
+	str++;
+	if (*str == '-')
 		str++;
 
-		for (int j = 0; j < num_flags; j++) {
-			const boolean_flag_t& flag = cmdline_flags[j];
-			if (strcmp(str, flag.name) == 0) {
-				*flag.flag_ptr = flag.value_if_present;
+	for (int j = 0; j < cmdline_flag_nr; j++) {
+		const cmdline_flag_t& f = cmdline_flags[j];
+
+		for (int k = 0; ; k++) {
+			if (f.name[k] == '\0') {
+				if (str[k] == '\0')
+					set_cmdline_flag(f, nullptr);
+				else if (str[k] == '=')
+					set_cmdline_flag(f, str + k + 1);
+				else
+					continue;
+				return;
+			} else if (f.name[k] != str[k]) {
 				break;
 			}
 		}

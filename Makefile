@@ -68,6 +68,11 @@ run: all
 	@echo "Running:"
 	$(EXEC) $(APP-FLAGS)
 
+# typos
+ru: run
+n:
+rnu: run
+
 gdb: all
 	@echo "Debugging:"
 	gdb $(EXEC)

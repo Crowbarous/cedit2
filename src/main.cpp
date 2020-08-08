@@ -5,7 +5,8 @@
 
 int main (int argc, char** argv)
 {
-	input_parse_cmdline_options(argc, argv);
+	for (int i = 1; i < argc; i++)
+		input_parse_cmdline_option(argv[i]);
 
 	render_init();
 	input_init();

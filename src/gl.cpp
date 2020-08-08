@@ -7,7 +7,8 @@
 #include <sstream>
 #include <vector>
 
-bool app_debug_opengl = false;
+bool app_opengl_debug = false;
+int app_opengl_msaa = -1;
 
 struct render_state_t {
 	int res_x;
@@ -30,9 +31,6 @@ void render_init ()
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
 			SDL_GL_CONTEXT_PROFILE_CORE);
 
-	if constexpr (gl_constants::MULTISAMPLE) {
-	}
-
 	constexpr GLenum windowflags =
 		SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
 	rctx.window = SDL_CreateWindow("app",
@@ -51,14 +49,13 @@ void render_init ()
 
 	SDL_GL_SetSwapInterval(-1);
 
-	if constexpr (gl_constants::MULTISAMPLE) {
+	if (app_opengl_msaa > 0) {
 		glEnable(GL_MULTISAMPLE);
 		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
-		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES,
-				gl_constants::MULTISAMPLE_SAMPLES);
+		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, app_opengl_msaa);
 	}
 
-	if (app_debug_opengl) {
+	if (app_opengl_debug) {
 		auto msg_callback = [] (
 				GLenum src, GLenum type, GLuint id,
 				GLuint severity, GLsizei len,
