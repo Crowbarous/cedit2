@@ -16,17 +16,15 @@ void app_init ()
 	viewport.set_size(0, 0, 640, 480);
 
 	using namespace glm;
-	mesh_load_obj(*viewport.mesh, "car.obj",
-			scale(mat4(1.0), vec3(0.05)));
-	mesh_load_obj(*viewport.mesh, "car.obj",
-			translate(scale(mat4(1.0), vec3(0.06)),
-				vec3(0.0, 0.0, 10.0)));
+	// mesh_load_obj(*viewport.mesh, "car.obj",
+	// 		scale(mat4(1.0), vec3(0.05)));
+	// mesh_load_obj(*viewport.mesh, "car.obj",
+	// 		translate(scale(mat4(1.0), vec3(0.06)),
+	// 			vec3(0.0, 0.0, 10.0)));
 }
 
 void app_deinit ()
 {
-	if (viewport.mesh->gpu_initialized())
-		viewport.mesh->gpu_deinit();
 }
 
 
@@ -84,17 +82,14 @@ void viewport3d_t::render () const
 
 	glEnable(GL_CULL_FACE);
 	glFrontFace(GL_CCW);
-	glUseProgram(mesh_shader_program_id);
 
-	glUniformMatrix4fv(mesh_gpu_constants::UNIFORM_LOC_VIEW,
-			1, false, glm::value_ptr(view));
-	glUniformMatrix4fv(mesh_gpu_constants::UNIFORM_LOC_PROJ,
-			1, false, glm::value_ptr(proj));
+	// glUseProgram(mesh_shader_program_id);
+	// glUniformMatrix4fv(mesh_gpu_constants::UNIFORM_LOC_VIEW,
+	// 		1, false, glm::value_ptr(view));
+	// glUniformMatrix4fv(mesh_gpu_constants::UNIFORM_LOC_PROJ,
+	// 		1, false, glm::value_ptr(proj));
 
 	glEnable(GL_DEPTH_TEST);
-
-	mesh->gpu_sync();
-	mesh->gpu_draw();
 }
 
 void viewport3d_t::set_size (int xl, int yl, int xh, int yh)

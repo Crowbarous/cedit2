@@ -15,34 +15,38 @@ using mat4 = glm::mat4;
 #define TEMPLATE_NSQ template<int N, class S = float, glm::qualifier Q = glm::packed>
 #define VEC_NSQ glm::vec<N, S, Q>
 
-TEMPLATE_NSQ std::ostream& operator<< (std::ostream& s, VEC_NSQ& v)
+TEMPLATE_NSQ std::ostream& operator<< (std::ostream& s, const VEC_NSQ& v)
 {
 	for (int i = 0; i < N-1; i++)
 		s << v[i] << ' ';
 	return s << v[N-1];
 }
 
-TEMPLATE_NSQ std::istream& operator>> (std::istream& s, const VEC_NSQ& v)
+TEMPLATE_NSQ std::istream& operator>> (std::istream& s, VEC_NSQ& v)
 {
 	for (int i = 0; i < N; i++)
 		s >> v[i];
 	return s;
 }
 
-/*
- * Can't use std::from_chars() since that wants to know where the buffer ends.
- * Also, strtof and friends for some reason want a char** and not const char**
- * for the second argument, so we const_cast once later
- */
-template <class T> inline auto _read_number (char*);
-template <> inline auto _read_number<float> (char* s) { return strtof(s, &s); }
-template <> inline auto _read_number<double> (char* s) { return strtod(s, &s); }
-template <> inline auto _read_number<long double> (char* s) { return strtold(s, &s); }
+template <typename T> T _read_num (const char*);
+#define READ_NUMBER_FLOAT_(T, f) \
+	template <> inline T _read_num<T> (const char* s) { return f(s, nullptr); }
+#define READ_NUMBER_INT_(T, f) \
+	template <> inline T _read_num<T> (const char* s) { return f(s, nullptr, 10); }
+READ_NUMBER_FLOAT_(float, strtof);
+READ_NUMBER_FLOAT_(double, strtod);
+READ_NUMBER_FLOAT_(long double, strtold);
+READ_NUMBER_INT_(long, strtol);
+READ_NUMBER_INT_(long long, strtoll);
+READ_NUMBER_INT_(unsigned long long, strtoull)
+#undef READ_NUMBER_FLOAT_
+#undef READ_NUMBER_INT_
 
 TEMPLATE_NSQ void atovec (const char* s, VEC_NSQ& v)
 {
 	for (int i = 0; i < N; i++)
-		v[i] = _read_number<S>(const_cast<char**>(s));
+		v[i] = _read_num<S>(s);
 }
 TEMPLATE_NSQ void atovec (const std::string& s, VEC_NSQ& v)
 {

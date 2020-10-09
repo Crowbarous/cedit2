@@ -14,6 +14,8 @@ namespace gl_constants
 	constexpr int VER_MINOR = 3;
 
 	constexpr const char* PATH_SHADER = "shader/";
+
+	/* Whether to put #line 5 "my_shader.frag" instead of just #line 5 */
 	constexpr bool GLSL_FILENAME_IN_LINE_DIRECTIVE = true;
 }
 
@@ -30,23 +32,5 @@ GLuint glsl_load_shader (const std::string& file_path, GLenum shader_type);
 void glsl_delete_shader (GLuint& shader);
 GLuint glsl_link_program (const GLuint* shaders, int num_shaders);
 GLuint glsl_link_program (std::initializer_list<GLuint> shaders);
-
-struct vert_attribute_t {
-	GLuint location;       /* layout (location = ...) */
-	GLuint num_components; /* vec3 -> 3 */
-	GLenum data_type;      /* GL_FLOAT etc. */
-	bool normalize;
-
-	/*
-	 * Stride and offset are the concern of the whole mesh format,
-	 * rather than a single attribute, so receive them by argument
-	 */
-	inline void send_attrib (size_t stride, size_t offset) const
-	{
-		glVertexAttribPointer(location, num_components, data_type,
-				normalize, stride, (void*) offset);
-		glEnableVertexAttribArray(location);
-	}
-};
 
 #endif // GL_H

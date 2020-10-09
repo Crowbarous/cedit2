@@ -2,11 +2,12 @@
 #define APP_H
 
 #include "camera.h"
-#include "mesh/mesh.h"
 
 void app_init ();
 void app_deinit ();
 void app_update ();
+
+struct mesh_t {  };
 
 struct viewport3d_t {
 	camera_t camera;

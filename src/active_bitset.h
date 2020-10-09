@@ -1,101 +1,32 @@
 #ifndef ACTIVE_BITSET_H
 #define ACTIVE_BITSET_H
 
-#include <cmath>
-#include <cstdint>
-#include <cstdio>
-#include <limits>
+#include <iosfwd>
 #include <vector>
 
-template <typename T>
-struct active_bitset {
-	static_assert(std::is_unsigned_v<T>,
-		"Underlying type for active_bitset must be integral unsigned");
-	static constexpr int bits_per_elem = std::numeric_limits<T>::digits;
-	static constexpr int bits_low = std::log2(bits_per_elem);
-	static_assert((bits_per_elem & (bits_per_elem-1)) == 0,
-		"Bits per element of active_bitset must be a power of 2");
+class active_bitset {
+private:
+	using T = size_t; /* Whatever the machine word is */
+	std::vector<T> bitfields;
+	int first_cleared_bit;
+public:
+	using underlying_t = T;
 
-	std::vector<T> vals = { 0 };
-	int min_cleared = 0;
+	active_bitset ();
 
-	int set_first_cleared ()
-	{
-		const int result = min_cleared;
-		int high = min_cleared >> bits_low;
-		int low = min_cleared & ((1 << bits_low) - 1);
+	/* Find the first cleared bit, set it, and return its index */
+	int set_first_cleared ();
 
-		vals[high] |= (T{1} << low);
+	/* Make the `n` first bits the only ones set */
+	void set_first_n_only (int n);
 
-		for (; high < vals.size(); high++) {
-			if (~vals[high] == 0)
-				continue;
+	bool bit_is_set (int index) const;
+	void clear_bit (int index);
+	void clear_all_bits ();
+	void set_bit (int index);
 
-			T lowest_bit = (~vals[high]) & (vals[high] + 1);
-			low = std::log2(lowest_bit);
-			min_cleared = (high << bits_low) | low;
-			return result;
-		}
-
-		vals.push_back(0);
-		min_cleared = high << bits_low;
-		return result;
-	}
-
-	void first_n_only (int n)
-	{
-		vals.clear();
-		for (; n >= bits_per_elem; n -= bits_per_elem)
-			vals.push_back(~T{0});
-		if (n > 0)
-			vals.push_back((T{1} << n) - 1);
-	}
-
-	bool is_set (int index) const
-	{
-		int high = index >> bits_low;
-		if (high >= vals.size())
-			return false;
-		int low = index & ((1 << bits_low) - 1);
-		return (vals[high] & (1 << low)) != 0;
-	}
-
-	void clear (int index)
-	{
-		int high = index >> bits_low;
-		if (high >= vals.size())
-			return;
-
-		int low = index & ((1 << bits_low) - 1);
-		vals[high] &= ~T{T{1} << low};
-
-		if (index < min_cleared)
-			min_cleared = index;
-
-		while (vals.size() > 1 && vals.back() == 0)
-			vals.pop_back();
-	}
-
-	void clear_all ()
-	{
-		vals = { 0 };
-		min_cleared = 0;
-	}
-
-	void debug_pretty_print () const
-	{
-		for (T v: vals) {
-			for (int i = 0; i < bits_per_elem; i++, v /= 2) {
-				fputc((v % 2) ? 'X' : '.', stderr);
-				if (i % 8 == 7)
-					fputc(' ', stderr);
-			}
-			fputc('\n', stderr);
-		}
-	}
+	/* Pretty-print over multiple lines (!) for debug */
+	friend std::ostream& operator<< (std::ostream&, active_bitset const&);
 };
-
-using active_bitset32 = active_bitset<uint32_t>;
-using active_bitset64 = active_bitset<uint64_t>;
 
 #endif // ACTIVE_BITSET_H

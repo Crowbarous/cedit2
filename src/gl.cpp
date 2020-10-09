@@ -1,6 +1,5 @@
 #include "app.h"
 #include "gl.h"
-#include "mesh/mesh.h"
 #include "util.h"
 #include <array>
 #include <fstream>
@@ -60,12 +59,12 @@ void render_init ()
 				GLenum src, GLenum type, GLuint id,
 				GLuint severity, GLsizei len,
 				const char* msg, const void* param)
-			-> void { warning("OpenGL: %s\n", msg); };
+			-> void {
+				warning("OpenGL: %s\n", msg);
+			};
 		glEnable(GL_DEBUG_OUTPUT);
 		glDebugMessageCallback(msg_callback, nullptr);
 	}
-
-	init_mesh();
 }
 
 void render_deinit ()
@@ -100,7 +99,7 @@ static void glsl_append_source (
 		std::ostringstream& src,
 		int recursion_depth)
 {
-	static constexpr int max_recursion_depth = 100;
+	constexpr int max_recursion_depth = 100;
 	if (recursion_depth > max_recursion_depth) {
 		fatal("Shader %s has a recursive #include chain of depth > %i. "
 		      "Note that it is NOT possible to guard #include with "
@@ -218,7 +217,5 @@ GLuint glsl_link_program (const GLuint* shaders, int num_shaders)
 
 GLuint glsl_link_program (std::initializer_list<GLuint> shaders)
 {
-	const GLuint* b = shaders.begin();
-	const GLuint* e = shaders.end();
-	return glsl_link_program(b, e - b);
+	return glsl_link_program(shaders.begin(), shaders.size());
 }

@@ -11,7 +11,7 @@ WARNINGS = \
 	-Wno-attributes \
 	-Wno-cast-function-type \
 	-Wshadow
-APP-FLAGS =
+APP-FLAGS = --opengl-debug
 
 CC = g++
 override CFLAGS += -Og -g $(WARNINGS) --std=gnu++17 -Isrc -fmax-errors=1
