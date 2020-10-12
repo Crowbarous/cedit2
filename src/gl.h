@@ -28,9 +28,4 @@ void render_deinit ();
 void render_frame ();
 void render_resize_window (int w, int h);
 
-GLuint glsl_load_shader (const std::string& file_path, GLenum shader_type);
-void glsl_delete_shader (GLuint& shader);
-GLuint glsl_link_program (const GLuint* shaders, int num_shaders);
-GLuint glsl_link_program (std::initializer_list<GLuint> shaders);
-
 #endif // GL_H
