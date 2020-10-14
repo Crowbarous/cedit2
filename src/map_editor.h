@@ -3,11 +3,14 @@
 
 #include "active_bitset.h"
 #include "math.h"
-#include "gl.h"
 #include <vector>
 
 class map_piece_mesh {
+public:
+	int add_vertex (vec3 position);
+	int add_face (const int* vert_ids, int vert_num);
 
+private:
 	struct vertex {
 		vec3 position;
 	};
@@ -16,10 +19,12 @@ class map_piece_mesh {
 
 	struct face {
 		enum face_type_t: uint8_t {
-			QUAD,
 			TRIANGLE,
+			QUAD,
 			NGON,
-		} type;
+		};
+
+		face_type_t type;
 		int id; /* Depending on `type`, is an index into different arrays */
 	};
 	std::vector<face> faces;
@@ -35,10 +40,6 @@ class map_piece_mesh {
 	std::vector<face_tri> faces_tri;
 	std::vector<face_quad> faces_quad;
 	std::vector<face_ngon> faces_ngon;
-
-	active_bitset faces_tri_active;
-	active_bitset faces_quad_active;
-	active_bitset faces_ngon_active;
 
 	bool vert_exists (int i) const { return verts_active.bit_is_set(i); }
 	bool face_exists (int i) const { return faces_active.bit_is_set(i); }

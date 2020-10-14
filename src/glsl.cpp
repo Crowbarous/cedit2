@@ -1,5 +1,6 @@
 #include "glsl.h"
 #include "util.h"
+#include <cassert>
 #include <fstream>
 #include <sstream>
 
