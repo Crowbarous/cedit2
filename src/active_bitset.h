@@ -29,4 +29,4 @@ public:
 	friend std::ostream& operator<< (std::ostream&, active_bitset const&);
 };
 
-#endif // ACTIVE_BITSET_H
+#endif /* ACTIVE_BITSET_H */

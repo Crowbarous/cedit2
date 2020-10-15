@@ -96,44 +96,40 @@ GLuint glsl_load_shader (const std::string& file_path, GLenum shader_type)
 			file_path.c_str(), log);
 }
 
-void glsl_delete_shader (GLuint& shader)
+void glsl_delete_shader (GLuint&& shader)
 {
 	glDeleteShader(shader);
 	shader = 0;
 }
 
-GLuint glsl_link_program (const GLuint* shaders, int num_shaders)
+GLuint glsl_link_program (const GLuint* shaders, int num)
 {
-	if (shaders == nullptr || num_shaders <= 0)
+	if (shaders == nullptr || num == 0)
 		fatal("Tried to link a program without any shaders");
 
-	GLuint id = glCreateProgram();
-	if (id == 0) {
-		fatal("Failed to create program (was going to link %i shaders)",
-				num_shaders);
-	}
+	GLuint program_id = glCreateProgram();
+	if (program_id == 0)
+		fatal("Failed to create program (was going to link %i shaders)", num);
 
-	for (int i = 0; i < num_shaders; i++)
-		glAttachShader(id, shaders[i]);
-
-	glLinkProgram(id);
+	for (int i = 0; i < num; i++)
+		glAttachShader(program_id, shaders[i]);
+	glLinkProgram(program_id);
+	for (int i = 0; i < num; i++)
+		glDetachShader(program_id, shaders[i]);
 
 	int link_success = 0;
-	glGetProgramiv(id, GL_LINK_STATUS, &link_success);
+	glGetProgramiv(program_id, GL_LINK_STATUS, &link_success);
 
-	if (link_success) {
-		for (int i = 0; i < num_shaders; i++)
-			glDetachShader(id, shaders[i]);
-		return id;
-	}
+	if (link_success)
+		return program_id;
 
 	int log_length = 0;
-	glGetProgramiv(id, GL_INFO_LOG_LENGTH, &log_length);
+	glGetProgramiv(program_id, GL_INFO_LOG_LENGTH, &log_length);
 	char log[log_length+1];
 	log[log_length] = '\0';
-	glGetProgramInfoLog(id, log_length, &log_length, log);
+	glGetProgramInfoLog(program_id, log_length, &log_length, log);
 
-	fatal("Program with id %i failed to link. Log:\n%s", id, log);
+	fatal("Program with id %i failed to link. Log:\n%s", program_id, log);
 }
 
 GLuint glsl_link_program (std::initializer_list<GLuint> shaders)

@@ -18,4 +18,4 @@ struct keybind_t {
 	void name ([[maybe_unused]] void* user_data, \
 	           [[maybe_unused]] bool pressed)
 
-#endif // INPUT_H
+#endif /* INPUT_H */

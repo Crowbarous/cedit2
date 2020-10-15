@@ -68,4 +68,4 @@ TEMPLATE_NSQ VEC_NSQ atovec (const std::string& s)
 #undef TEMPLATE_NSQ
 #undef VEC_NSQ
 
-#endif // MATH_H
+#endif /* MATH_H */

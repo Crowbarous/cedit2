@@ -28,4 +28,4 @@ void render_deinit ();
 void render_frame ();
 void render_resize_window (int w, int h);
 
-#endif // GL_H
+#endif /* GL_H */

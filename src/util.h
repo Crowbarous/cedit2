@@ -67,5 +67,5 @@ bool str_any_of (const char* needle,
 		operator fundamental_type () { return value; } \
 	}
 
-#endif // UTIL_H
+#endif /* UTIL_H */
 

@@ -35,4 +35,4 @@ struct move_flags_t {
 extern move_flags_t camera_move_flags;
 bool camera_is_moving ();
 
-#endif // APP_H
+#endif /* APP_H */

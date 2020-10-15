@@ -25,5 +25,5 @@ struct camera_t {
 		: pos(p), angles(a), fov(f), aspect(asp), z_near(zn), z_far(zf) { }
 };
 
-#endif // CAMERA_H
+#endif /* CAMERA_H */
 
