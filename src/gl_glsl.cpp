@@ -1,4 +1,4 @@
-#include "glsl.h"
+#include "gl_glsl.h"
 #include "util.h"
 #include <cassert>
 #include <fstream>
@@ -96,7 +96,7 @@ GLuint glsl_load_shader (const std::string& file_path, GLenum shader_type)
 			file_path.c_str(), log);
 }
 
-void glsl_delete_shader (GLuint&& shader)
+void glsl_delete_shader (GLuint& shader)
 {
 	glDeleteShader(shader);
 	shader = 0;
@@ -135,4 +135,10 @@ GLuint glsl_link_program (const GLuint* shaders, int num)
 GLuint glsl_link_program (std::initializer_list<GLuint> shaders)
 {
 	return glsl_link_program(shaders.begin(), shaders.size());
+}
+
+void glsl_delete_program (GLuint& program)
+{
+	glDeleteProgram(program);
+	program = 0;
 }
