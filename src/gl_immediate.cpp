@@ -28,12 +28,10 @@ void imm_init ()
 	glGenBuffers(1, &imm_vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, imm_vbo);
 
-	glEnableVertexAttribArray(ATTRIB_LOC_POSITION);
-	glEnableVertexAttribArray(ATTRIB_LOC_COLOR);
-	glVertexAttribPointer(ATTRIB_LOC_POSITION, 3, GL_FLOAT, GL_FALSE,
-			sizeof(vertex), (void*) offsetof(vertex, position));
-	glVertexAttribPointer(ATTRIB_LOC_COLOR, 3, GL_FLOAT, GL_FALSE,
-			sizeof(vertex), (void*) offsetof(vertex, color));
+	gl_vertex_attrib_ptr(ATTRIB_LOC_POSITION, 3, GL_FLOAT, false,
+			sizeof(vertex), offsetof(vertex, position));
+	gl_vertex_attrib_ptr(ATTRIB_LOC_COLOR, 3, GL_FLOAT, false,
+			sizeof(vertex), offsetof(vertex, color));
 
 	GLuint shaders[2] = { glsl_load_shader("immediate.frag", GL_FRAGMENT_SHADER),
 	                      glsl_load_shader("immediate.vert", GL_VERTEX_SHADER) };

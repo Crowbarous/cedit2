@@ -14,13 +14,6 @@ void app_init ()
 		  .z_near = 0.5, .z_far = 100.0 };
 	viewport.mesh = &some_mesh;
 	viewport.set_size(0, 0, 640, 480);
-
-	using namespace glm;
-	// mesh_load_obj(*viewport.mesh, "car.obj",
-	// 		scale(mat4(1.0), vec3(0.05)));
-	// mesh_load_obj(*viewport.mesh, "car.obj",
-	// 		translate(scale(mat4(1.0), vec3(0.06)),
-	// 			vec3(0.0, 0.0, 10.0)));
 }
 
 void app_deinit ()
@@ -73,21 +66,15 @@ void app_update ()
 
 void viewport3d_t::render () const
 {
-	int dim_w = dim_x_high - dim_x_low;
-	int dim_h = dim_y_high - dim_y_low;
-	glViewport(dim_x_low, dim_y_low, dim_w, dim_h);
+	int dim_w = this->dim_x_high - this->dim_x_low;
+	int dim_h = this->dim_y_high - this->dim_y_low;
+	glViewport(this->dim_x_low, this->dim_y_low, dim_w, dim_h);
 
-	const mat4 proj = camera.get_proj();
-	const mat4 view = camera.get_view();
+	const mat4 proj = this->camera.get_proj();
+	const mat4 view = this->camera.get_view();
 
 	glEnable(GL_CULL_FACE);
 	glFrontFace(GL_CCW);
-
-	// glUseProgram(mesh_shader_program_id);
-	// glUniformMatrix4fv(mesh_gpu_constants::UNIFORM_LOC_VIEW,
-	// 		1, false, glm::value_ptr(view));
-	// glUniformMatrix4fv(mesh_gpu_constants::UNIFORM_LOC_PROJ,
-	// 		1, false, glm::value_ptr(proj));
 
 	glEnable(GL_DEPTH_TEST);
 }
@@ -96,13 +83,13 @@ void viewport3d_t::set_size (int xl, int yl, int xh, int yh)
 {
 	assert(xh > xl && yh > yl);
 
-	dim_x_low = xl;
-	dim_y_low = yl;
-	dim_x_high = xh;
-	dim_y_high = yh;
+	this->dim_x_low = xl;
+	this->dim_y_low = yl;
+	this->dim_x_high = xh;
+	this->dim_y_high = yh;
 
 	int w = xh - xl;
 	int h = yh - yl;
 
-	camera.aspect = (float) w / h;
+	this->camera.aspect = (float) w / h;
 }

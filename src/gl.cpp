@@ -102,3 +102,21 @@ void render_resize_window (int w, int h)
 	rctx.res_x = w;
 	rctx.res_y = h;
 }
+
+void gl_vertex_attrib_ptr (
+		int attrib_location,
+		int num_elements,
+		GLenum data_type,
+		bool should_normalize,
+		size_t stride,
+		size_t start_pointer)
+{
+	glEnableVertexAttribArray(attrib_location);
+	glVertexAttribPointer(
+			attrib_location,
+			num_elements,
+			data_type,
+			should_normalize,
+			stride,
+			(void*) start_pointer);
+}
