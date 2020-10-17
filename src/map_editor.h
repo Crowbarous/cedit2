@@ -11,6 +11,7 @@ public:
 	int add_face (const int* vert_ids, int vert_num);
 
 	void remove_face (int face_id);
+	vec3 get_face_normal (int face_id) const;
 
 	void gpu_draw () const;
 
@@ -47,6 +48,10 @@ private:
 		int num_verts;
 		int face_id;
 	};
+
+	vec3 get_face_normal_tri (int internal_id) const;
+	vec3 get_face_normal_quad (int internal_id) const;
+	vec3 get_face_normal_ngon (int internal_id) const;
 
 	std::vector<face_tri> faces_tri;
 	std::vector<face_quad> faces_quad;

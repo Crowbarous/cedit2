@@ -117,41 +117,91 @@ void map_piece_mesh::remove_face (int face_id)
 	faces_active.clear_bit(face_id);
 }
 
+
+vec3 map_piece_mesh::get_face_normal (int face_id) const
+{
+	assert(this->face_exists(face_id));
+	const face& f = this->faces[face_id];
+	switch (f.type) {
+	case TRIANGLE:
+		return this->get_face_normal_tri(f.internal_id);
+	case QUAD:
+		return this->get_face_normal_quad(f.internal_id);
+	case NGON: default:
+		return this->get_face_normal_ngon(f.internal_id);
+	}
+}
+
+vec3 map_piece_mesh::get_face_normal_tri (int id) const
+{
+	const face_tri& tri = this->faces_tri[id];
+	int a = tri.vert_ids[0];
+	int b = tri.vert_ids[1];
+	int c = tri.vert_ids[2];
+	vec3 delta1 = this->verts[a].position - this->verts[b].position;
+	vec3 delta2 = this->verts[a].position - this->verts[c].position;
+	return glm::normalize(glm::cross(delta1, delta2));
+}
+
+vec3 map_piece_mesh::get_face_normal_quad (int id) const
+{
+	// Find the vectors of two diagonals (which might themselves not
+	// intersect, since the quad is not necessarily planar) and cross them
+	const face_quad& quad = this->faces_quad[id];
+	int a = quad.vert_ids[0];
+	int b = quad.vert_ids[1];
+	int c = quad.vert_ids[2];
+	int d = quad.vert_ids[3];
+	vec3 delta1 = this->verts[a].position - this->verts[c].position;
+	vec3 delta2 = this->verts[b].position - this->verts[d].position;
+	return glm::normalize(glm::cross(delta1, delta2));
+}
+
+vec3 map_piece_mesh::get_face_normal_ngon (int id) const
+{
+	// Find the normal "at" each vertex and average those
+	const face_ngon& ngon = this->faces_ngon[id];
+	const int n = ngon.num_verts;
+
+	vec3 edge_vectors[n];
+	for (int i = 0; i < n; i++) {
+		edge_vectors[i] = this->verts[ngon.vert_ids[i]].position
+		                - this->verts[ngon.vert_ids[(i + 1) % n]].position;
+	}
+
+	vec3 result(0.0);
+	for (int i = 0; i < n; i++)
+		result += glm::cross(edge_vectors[i], edge_vectors[(i + 1) % n]);
+
+	return glm::normalize(result);
+}
+
 void map_piece_mesh::gpu_draw () const
 {
-	imm_begin(GL_TRIANGLES);
+	auto draw_tri = [this] (const int* vert_ids, int a, int b, int c) {
+		imm_begin(GL_TRIANGLES);
+		imm_vertex(this->verts[vert_ids[a]].position);
+		imm_vertex(this->verts[vert_ids[b]].position);
+		imm_vertex(this->verts[vert_ids[c]].position);
+		imm_end();
+	};
 
-	for (const face_tri& tri: this->faces_tri) {
-		imm_normal({ 1.0, 1.0, 1.0 });
-		for (int i = 0; i < 3; i++)
-			imm_vertex(this->verts[tri.vert_ids[i]].position);
+	for (int i = 0; i < this->faces_tri.size(); i++) {
+		imm_normal(this->get_face_normal_tri(i));
+		draw_tri(this->faces_tri[i].vert_ids, 0, 1, 2);
 	}
 
-	for (const face_quad& quad: this->faces_quad) {
-		imm_normal({ 0.0, 0.0, 1.0 });
-
-		auto tri = [this, &quad] (int a, int b, int c) -> void {
-			imm_vertex(this->verts[quad.vert_ids[a]].position);
-			imm_vertex(this->verts[quad.vert_ids[b]].position);
-			imm_vertex(this->verts[quad.vert_ids[c]].position);
-		};
-
-		tri(0, 1, 2);
-		tri(0, 2, 3);
+	for (int i = 0; i < this->faces_quad.size(); i++) {
+		const face_quad& quad = this->faces_quad[i];
+		imm_normal(this->get_face_normal_quad(i));
+		draw_tri(quad.vert_ids, 0, 1, 2);
+		draw_tri(quad.vert_ids, 0, 2, 3);
 	}
 
-	for (const face_ngon& ngon: this->faces_ngon) {
-		imm_normal({ 0.0, 1.0, 1.0 });
-
-		auto tri = [this, &ngon] (int a, int b, int c) -> void {
-			imm_vertex(this->verts[ngon.vert_ids[a]].position);
-			imm_vertex(this->verts[ngon.vert_ids[b]].position);
-			imm_vertex(this->verts[ngon.vert_ids[c]].position);
-		};
-
-		for (int i = 2; i < ngon.num_verts; i++)
-			tri(0, i-1, i);
+	for (int i = 0; i < this->faces_ngon.size(); i++) {
+		const face_ngon& ngon = this->faces_ngon[i];
+		imm_normal(this->get_face_normal_ngon(i));
+		for (int j = 2; j < ngon.num_verts; j++)
+			draw_tri(ngon.vert_ids, 0, j-1, j);
 	}
-
-	imm_end();
 }

@@ -20,11 +20,14 @@ void app_init ()
 	viewport.map_piece = &some_map_piece;
 
 	{
-		constexpr int vert_n = 4;
-		vec3 vert_pos[vert_n] = { { 1.0, 1.0, 0.0 },
-			             { -1.0, 1.0, 0.0 },
-			             { -1.0, -1.0, 0.0 },
-			             { 1.0, -1.0, 0.0 } };
+		constexpr int vert_n = 5;
+		vec3 vert_pos[vert_n] = {
+			{ 1.0, 1.0, 0.0 },
+			{ -1.0, 1.0, 0.0 },
+			{ -1.0, -1.0, 0.0 },
+			{ 1.0, -1.0, 0.0 },
+			{ 1.5, 0.0, 0.0 },
+		};
 		int vert_ids[vert_n];
 		for (int i = 0; i < vert_n; i++)
 			vert_ids[i] = viewport.map_piece->add_vertex(vert_pos[i]);
