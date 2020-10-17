@@ -1,4 +1,5 @@
 #include "map_editor.h"
+#include "gl_immediate.h"
 #include <cassert>
 
 int map_piece_mesh::add_vertex (vec3 position)
@@ -114,4 +115,43 @@ void map_piece_mesh::remove_face (int face_id)
 	assert(this->face_exists(other_face_id));
 
 	faces_active.clear_bit(face_id);
+}
+
+void map_piece_mesh::gpu_draw () const
+{
+	imm_begin(GL_TRIANGLES);
+
+	for (const face_tri& tri: this->faces_tri) {
+		imm_normal({ 1.0, 1.0, 1.0 });
+		for (int i = 0; i < 3; i++)
+			imm_vertex(this->verts[tri.vert_ids[i]].position);
+	}
+
+	for (const face_quad& quad: this->faces_quad) {
+		imm_normal({ 0.0, 0.0, 1.0 });
+
+		auto tri = [this, &quad] (int a, int b, int c) -> void {
+			imm_vertex(this->verts[quad.vert_ids[a]].position);
+			imm_vertex(this->verts[quad.vert_ids[b]].position);
+			imm_vertex(this->verts[quad.vert_ids[c]].position);
+		};
+
+		tri(0, 1, 2);
+		tri(0, 2, 3);
+	}
+
+	for (const face_ngon& ngon: this->faces_ngon) {
+		imm_normal({ 0.0, 1.0, 1.0 });
+
+		auto tri = [this, &ngon] (int a, int b, int c) -> void {
+			imm_vertex(this->verts[ngon.vert_ids[a]].position);
+			imm_vertex(this->verts[ngon.vert_ids[b]].position);
+			imm_vertex(this->verts[ngon.vert_ids[c]].position);
+		};
+
+		for (int i = 2; i < ngon.num_verts; i++)
+			tri(0, i-1, i);
+	}
+
+	imm_end();
 }

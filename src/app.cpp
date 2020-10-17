@@ -1,9 +1,12 @@
 #include "app.h"
 #include "gl.h"
+#include "gl_glsl.h"
 #include "util.h"
 
 viewport3d_t viewport;
-mesh_t some_mesh;
+map_piece_mesh some_map_piece;
+
+static GLuint mesh_program;
 
 void app_init ()
 {
@@ -12,12 +15,32 @@ void app_init ()
 		  .angles = { 0.0, 180.0, 0.0 },
 		  .fov = 90.0, .aspect = 1.0,
 		  .z_near = 0.5, .z_far = 100.0 };
-	viewport.mesh = &some_mesh;
 	viewport.set_size(0, 0, 640, 480);
+
+	viewport.map_piece = &some_map_piece;
+
+	{
+		constexpr int vert_n = 4;
+		vec3 vert_pos[vert_n] = { { 1.0, 1.0, 0.0 },
+			             { -1.0, 1.0, 0.0 },
+			             { -1.0, -1.0, 0.0 },
+			             { 1.0, -1.0, 0.0 } };
+		int vert_ids[vert_n];
+		for (int i = 0; i < vert_n; i++)
+			vert_ids[i] = viewport.map_piece->add_vertex(vert_pos[i]);
+		viewport.map_piece->add_face(vert_ids, vert_n);
+	}
+
+	GLuint shaders[2] = { glsl_load_shader("mesh.frag", GL_FRAGMENT_SHADER),
+	                      glsl_load_shader("mesh.vert", GL_VERTEX_SHADER) };
+	mesh_program = glsl_link_program(shaders, 2);
+	for (GLuint& s: shaders)
+		glsl_delete_shader(s);
 }
 
 void app_deinit ()
 {
+	glsl_delete_program(mesh_program);
 }
 
 
@@ -46,8 +69,8 @@ void app_update ()
 		vec3 direction(0.0);
 
 		camera_t& cam = viewport.camera;
-		const vec3 right = cam.get_rt_vector();
-		const vec3 forward = cam.get_fwd_vector();
+		const vec3 right = cam.get_right_vector();
+		const vec3 forward = cam.get_forward_vector();
 
 		if (camera_move_flags.forward)
 			direction += forward;
@@ -69,14 +92,17 @@ void viewport3d_t::render () const
 	int dim_w = this->dim_x_high - this->dim_x_low;
 	int dim_h = this->dim_y_high - this->dim_y_low;
 	glViewport(this->dim_x_low, this->dim_y_low, dim_w, dim_h);
-
-	const mat4 proj = this->camera.get_proj();
-	const mat4 view = this->camera.get_view();
-
 	glEnable(GL_CULL_FACE);
 	glFrontFace(GL_CCW);
-
 	glEnable(GL_DEPTH_TEST);
+
+	const camera_t& cam = this->camera;
+	const mat4 transform = cam.get_proj() * cam.get_view();
+
+	glUseProgram(mesh_program);
+	glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(transform));
+
+	this->map_piece->gpu_draw();
 }
 
 void viewport3d_t::set_size (int xl, int yl, int xh, int yh)

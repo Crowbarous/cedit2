@@ -2,12 +2,11 @@
 #define APP_H
 
 #include "camera.h"
+#include "map_editor.h"
 
 void app_init ();
 void app_deinit ();
 void app_update ();
-
-struct mesh_t {  };
 
 struct viewport3d_t {
 	camera_t camera;
@@ -18,7 +17,7 @@ struct viewport3d_t {
 	int dim_x_high;
 	int dim_y_high;
 
-	mesh_t* mesh;
+	map_piece_mesh* map_piece;
 
 	void render () const;
 	void set_size (int xl, int yl, int xh, int yh);

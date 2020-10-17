@@ -12,6 +12,8 @@ public:
 
 	void remove_face (int face_id);
 
+	void gpu_draw () const;
+
 private:
 	struct vertex {
 		vec3 position;
