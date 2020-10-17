@@ -82,15 +82,6 @@ void render_frame ()
 
 	viewport.render();
 
-	glDisable(GL_CULL_FACE);
-	glDisable(GL_DEPTH_CLAMP);
-	imm_begin(GL_TRIANGLES);
-	imm_color({ 1.0, 1.0, 1.0 });
-	imm_vertex({ 0.0, 0.0, 0.5 });
-	imm_vertex({ 0.0, 1.0, 0.5 });
-	imm_vertex({ 1.0, 0.0, 0.5 });
-	imm_end();
-
 	SDL_GL_SwapWindow(rctx.window);
 
 	if (GLenum err = glGetError(); err != 0)
