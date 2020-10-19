@@ -1,5 +1,5 @@
-#ifndef MAP_EDITOR_H
-#define MAP_EDITOR_H
+#ifndef MAP_EDIT_H
+#define MAP_EDIT_H
 
 #include "active_bitset.h"
 #include "math.h"
@@ -61,4 +61,4 @@ private:
 	bool face_exists (int i) const { return this->faces_active.bit_is_set(i); }
 };
 
-#endif /* MAP_EDITOR_H */
+#endif /* MAP_EDIT_H */

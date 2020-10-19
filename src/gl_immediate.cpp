@@ -61,7 +61,6 @@ void imm_begin (GLenum render_mode)
 	imm_buffer.clear();
 }
 
-#include <iostream>
 void imm_end ()
 {
 	assert(imm_after_begin);

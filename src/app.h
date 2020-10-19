@@ -2,7 +2,7 @@
 #define APP_H
 
 #include "camera.h"
-#include "map_editor.h"
+#include "map_edit.h"
 
 void app_init ();
 void app_deinit ();

@@ -1,5 +1,6 @@
-#include "map_editor.h"
+#include "map_edit.h"
 #include "gl_immediate.h"
+#include "util.h"
 #include <cassert>
 
 int map_piece_mesh::add_vertex (vec3 position)
@@ -84,8 +85,7 @@ void map_piece_mesh::remove_face (int face_id)
 		other_face.internal_id = f.internal_id;
 		assert(other_face.type == TRIANGLE);
 
-		this->faces_tri[f.internal_id] = this->faces_tri.back();
-		this->faces_tri.pop_back();
+		container_replace_with_last(this->faces_tri, f.internal_id);
 
 		break;
 	}
@@ -95,8 +95,7 @@ void map_piece_mesh::remove_face (int face_id)
 		other_face.internal_id = f.internal_id;
 		assert(other_face.type == QUAD);
 
-		this->faces_quad[f.internal_id] = this->faces_quad.back();
-		this->faces_quad.pop_back();
+		container_replace_with_last(this->faces_quad, f.internal_id);
 
 		break;
 	}
@@ -106,8 +105,7 @@ void map_piece_mesh::remove_face (int face_id)
 		other_face.internal_id = f.internal_id;
 		assert(other_face.type == NGON);
 
-		this->faces_ngon[f.internal_id] = this->faces_ngon.back();
-		this->faces_ngon.pop_back();
+		container_replace_with_last(this->faces_ngon, f.internal_id);
 
 		break;
 	}
@@ -127,7 +125,8 @@ vec3 map_piece_mesh::get_face_normal (int face_id) const
 		return this->get_face_normal_tri(f.internal_id);
 	case QUAD:
 		return this->get_face_normal_quad(f.internal_id);
-	case NGON: default:
+	case NGON:
+	default:
 		return this->get_face_normal_ngon(f.internal_id);
 	}
 }
@@ -166,7 +165,7 @@ vec3 map_piece_mesh::get_face_normal_ngon (int id) const
 	vec3 edge_vectors[n];
 	for (int i = 0; i < n; i++) {
 		edge_vectors[i] = this->verts[ngon.vert_ids[i]].position
-		                - this->verts[ngon.vert_ids[(i + 1) % n]].position;
+			- this->verts[ngon.vert_ids[(i + 1) % n]].position;
 	}
 
 	vec3 result(0.0);
@@ -178,12 +177,12 @@ vec3 map_piece_mesh::get_face_normal_ngon (int id) const
 
 void map_piece_mesh::gpu_draw () const
 {
+	imm_begin(GL_TRIANGLES);
+
 	auto draw_tri = [this] (const int* vert_ids, int a, int b, int c) {
-		imm_begin(GL_TRIANGLES);
 		imm_vertex(this->verts[vert_ids[a]].position);
 		imm_vertex(this->verts[vert_ids[b]].position);
 		imm_vertex(this->verts[vert_ids[c]].position);
-		imm_end();
 	};
 
 	for (int i = 0; i < this->faces_tri.size(); i++) {
@@ -204,4 +203,6 @@ void map_piece_mesh::gpu_draw () const
 		for (int j = 2; j < ngon.num_verts; j++)
 			draw_tri(ngon.vert_ids, 0, j-1, j);
 	}
+
+	imm_end();
 }

@@ -41,21 +41,10 @@ KEY_FUNC (keybind_camera_move)
 
 KEY_FUNC (keybind_change_mesh)
 {
-	if (!pressed)
-		return;
-	static float z = -5.0;
-
-	// mesh_load_obj(*viewport.mesh, "car.obj",
-	// 		scale(translate(mat4(1.0), vec3(2.0, 2.0, z)),
-	// 			vec3(0.04)));
-	z += 2.0;
 }
 
 KEY_FUNC (keybind_print_mesh)
 {
-	if (!pressed)
-		return;
-	// viewport.mesh->debug_dump_info();
 }
 
 void mouse_bind (int x, int y, int dx, int dy)

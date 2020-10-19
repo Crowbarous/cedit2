@@ -36,6 +36,7 @@ template <class T> T ceil_po2 (T x)
 		static_assert(always_false<T>, "Called ceil_po2 on an invalid type");
 }
 
+
 template <class T>
 std::ostream& debug_print_container (const T& v, std::ostream& s)
 {
@@ -45,27 +46,22 @@ std::ostream& debug_print_container (const T& v, std::ostream& s)
 	return s << ']';
 }
 
+/*
+ * Remove an element from a vector by replacing it with last
+ * and popping last. Aimed at std::vector, of course,
+ * but templated so as to avoid including <vector> and maybe
+ */
+template <class T>
+void container_replace_with_last (T& container, int index)
+{
+	if (container.size() > 1)
+		container[index] = container.back();
+	container.pop_back();
+}
+
+
 bool str_any_of (const char* needle,
 		std::initializer_list<const char*> haystack);
-
-/*
- * Wrap a fundamental type into a class. Two different wrappers to the
- * same type are prevented from *implicitly* being cast into eath other
- *
- * (for example, indices into unrelated data structures may both be
- *  integer but it often makes no sense to cast them into each other)
- *
- * Note: anything that isn't simple assignment goes through anyway:
- *       arithmetics on different wrappers, etc.
- */
-#define WRAP_FUNDAMENTAL_TYPE(fundamental_type, class_name) \
-	class class_name { \
-	private: \
-		fundamental_type value; \
-	public: \
-		class_name (const fundamental_type& v): value(v) { } \
-		operator fundamental_type () { return value; } \
-	}
 
 #endif /* UTIL_H */
 
