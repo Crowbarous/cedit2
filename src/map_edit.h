@@ -3,6 +3,7 @@
 
 #include "active_bitset.h"
 #include "math.h"
+#include "gl.h"
 #include <vector>
 
 class map_piece_mesh {
@@ -14,6 +15,9 @@ public:
 	vec3 get_face_normal (int face_id) const;
 
 	void gpu_draw () const;
+	void gpu_init ();
+	void gpu_deinit ();
+	void gpu_sync ();
 
 private:
 	struct vertex {
@@ -36,15 +40,15 @@ private:
 	active_bitset faces_active;
 
 	struct face_tri {
-		int vert_ids[3];
+		int verts[3];
 		int face_id;
 	};
 	struct face_quad {
-		int vert_ids[4];
+		int verts[4];
 		int face_id;
 	};
 	struct face_ngon {
-		int* vert_ids;
+		int* verts;
 		int num_verts;
 		int face_id;
 	};
@@ -59,6 +63,38 @@ private:
 
 	bool vert_exists (int i) const { return this->verts_active.bit_is_set(i); }
 	bool face_exists (int i) const { return this->faces_active.bit_is_set(i); }
+
+	/*
+	 * ================== GPU STUFF ==================
+	 */
+
+	bool gpu_is_initialized () const { return this->gpu_tri.vao != 0; }
+	struct gpu_drawable {
+		GLuint vao = 0;
+		GLuint vbo = 0;
+		void init ();
+		void deinit ();
+		void bind () const;
+	};
+	gpu_drawable gpu_tri;
+	gpu_drawable gpu_quad;
+	gpu_drawable gpu_ngon;
+
+	struct gpu_vertex {
+		vec3 position;
+		vec3 normal;
+	};
+
+	static void gpu_set_vertex_format ();
+	void gpu_dump_tri (int tri_id, gpu_vertex* dest);
+	void gpu_dump_quad (int quad_id, gpu_vertex* dest);
+	void gpu_dump_ngon (int ngon_id, gpu_vertex* dest);
+};
+
+namespace mesh_shader_attrib_loc
+{
+constexpr static int POSITION = 0;
+constexpr static int NORMAL = 1;
 };
 
 #endif /* MAP_EDIT_H */

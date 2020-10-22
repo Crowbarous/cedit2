@@ -19,10 +19,10 @@ static std::vector<vertex> imm_buffer;
 
 void imm_init ()
 {
-	glGenVertexArrays(1, &imm_vao);
+	imm_vao = gl_gen_vertex_array();
 	glBindVertexArray(imm_vao);
 
-	glGenBuffers(1, &imm_vbo);
+	imm_vbo = gl_gen_buffer();
 	glBindBuffer(GL_ARRAY_BUFFER, imm_vbo);
 
 	using namespace imm_attrib_loc;

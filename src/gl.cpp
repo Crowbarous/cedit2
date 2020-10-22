@@ -111,3 +111,31 @@ void gl_vertex_attrib_ptr (
 			stride,
 			(void*) start_pointer);
 }
+
+GLuint gl_gen_vertex_array ()
+{
+	GLuint r;
+	glGenVertexArrays(1, &r);
+	assert(r != 0);
+	return r;
+}
+
+void gl_delete_vertex_array (GLuint& a)
+{
+	glDeleteVertexArrays(1, &a);
+	a = 0;
+}
+
+GLuint gl_gen_buffer ()
+{
+	GLuint r;
+	glGenBuffers(1, &r);
+	assert(r != 0);
+	return r;
+}
+
+void gl_delete_buffer (GLuint& b)
+{
+	glDeleteBuffers(1, &b);
+	b = 0;
+}

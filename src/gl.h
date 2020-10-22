@@ -29,10 +29,11 @@ void render_deinit ();
 void render_frame ();
 void render_resize_window (int w, int h);
 
+/* Thin wrappers aronund GL functions, where appropriate */
+
 /*
- * A thin wrapper around VertexAtribPointer that also does
- * EnableVertexAttribArray so that you don't forget to and
- * takes care of the stupid (void*) cast of the start pointer
+ *  Also does EnableVertexAttribArray so that you don't forget to
+ *  and takes care of the stupid (void*) cast of the start pointer
  */
 void gl_vertex_attrib_ptr (
 		int attrib_location,
@@ -41,5 +42,11 @@ void gl_vertex_attrib_ptr (
 		bool should_normalize,
 		size_t stride,
 		size_t start_pointer);
+
+GLuint gl_gen_vertex_array ();
+void gl_delete_vertex_array (GLuint&);
+
+GLuint gl_gen_buffer ();
+void gl_delete_buffer (GLuint&);
 
 #endif /* GL_H */

@@ -32,7 +32,7 @@ int map_piece_mesh::add_face (const int* vert_ids, int vert_num)
 		face_tri& tri = this->faces_tri.back();
 
 		tri.face_id = face_id;
-		memcpy(tri.vert_ids, vert_ids, sizeof(int) * 3);
+		memcpy(tri.verts, vert_ids, sizeof(int) * 3);
 
 		break;
 	}
@@ -43,7 +43,7 @@ int map_piece_mesh::add_face (const int* vert_ids, int vert_num)
 		face_quad& quad = this->faces_quad.back();
 
 		quad.face_id = face_id;
-		memcpy(quad.vert_ids, vert_ids, sizeof(int) * 4);
+		memcpy(quad.verts, vert_ids, sizeof(int) * 4);
 
 		break;
 	}
@@ -54,9 +54,9 @@ int map_piece_mesh::add_face (const int* vert_ids, int vert_num)
 		face_ngon& ngon = this->faces_ngon.back();
 
 		ngon.face_id = face_id;
-		ngon.vert_ids = new int[vert_num];
+		ngon.verts = new int[vert_num];
 		ngon.num_verts = vert_num;
-		memcpy(ngon.vert_ids, vert_ids, sizeof(int) * vert_num);
+		memcpy(ngon.verts, vert_ids, sizeof(int) * vert_num);
 
 		break;
 	}
@@ -134,9 +134,9 @@ vec3 map_piece_mesh::get_face_normal (int face_id) const
 vec3 map_piece_mesh::get_face_normal_tri (int id) const
 {
 	const face_tri& tri = this->faces_tri[id];
-	int a = tri.vert_ids[0];
-	int b = tri.vert_ids[1];
-	int c = tri.vert_ids[2];
+	int a = tri.verts[0];
+	int b = tri.verts[1];
+	int c = tri.verts[2];
 	vec3 delta1 = this->verts[a].position - this->verts[b].position;
 	vec3 delta2 = this->verts[a].position - this->verts[c].position;
 	return glm::normalize(glm::cross(delta1, delta2));
@@ -147,10 +147,10 @@ vec3 map_piece_mesh::get_face_normal_quad (int id) const
 	// Find the vectors of two diagonals (which might themselves not
 	// intersect, since the quad is not necessarily planar) and cross them
 	const face_quad& quad = this->faces_quad[id];
-	int a = quad.vert_ids[0];
-	int b = quad.vert_ids[1];
-	int c = quad.vert_ids[2];
-	int d = quad.vert_ids[3];
+	int a = quad.verts[0];
+	int b = quad.verts[1];
+	int c = quad.verts[2];
+	int d = quad.verts[3];
 	vec3 delta1 = this->verts[a].position - this->verts[c].position;
 	vec3 delta2 = this->verts[b].position - this->verts[d].position;
 	return glm::normalize(glm::cross(delta1, delta2));
@@ -164,8 +164,8 @@ vec3 map_piece_mesh::get_face_normal_ngon (int id) const
 
 	vec3 edge_vectors[n];
 	for (int i = 0; i < n; i++) {
-		edge_vectors[i] = this->verts[ngon.vert_ids[i]].position
-			- this->verts[ngon.vert_ids[(i + 1) % n]].position;
+		edge_vectors[i] = this->verts[ngon.verts[i]].position
+			- this->verts[ngon.verts[(i + 1) % n]].position;
 	}
 
 	vec3 result(0.0);
@@ -173,6 +173,88 @@ vec3 map_piece_mesh::get_face_normal_ngon (int id) const
 		result += glm::cross(edge_vectors[i], edge_vectors[(i + 1) % n]);
 
 	return glm::normalize(result);
+}
+
+/*
+ * ================== GPU STUFF ==================
+ */
+
+namespace shader_attrib_loc
+{
+constexpr static int POSITION = 0;
+constexpr static int NORMAL = 1;
+};
+
+void map_piece_mesh::gpu_drawable::init ()
+{
+	this->vao = gl_gen_vertex_array();
+	this->vbo = gl_gen_buffer();
+}
+
+void map_piece_mesh::gpu_drawable::deinit ()
+{
+	gl_delete_vertex_array(this->vao);
+	gl_delete_buffer(this->vbo);
+}
+
+void map_piece_mesh::gpu_drawable::bind () const
+{
+	glBindVertexArray(this->vao);
+	glBindBuffer(GL_ARRAY_BUFFER, this->vbo);
+}
+
+void map_piece_mesh::gpu_set_vertex_format ()
+{
+	using namespace shader_attrib_loc;
+	gl_vertex_attrib_ptr(POSITION, 3, GL_FLOAT, GL_FALSE,
+			sizeof(gpu_vertex),
+			offsetof(gpu_vertex, position));
+	gl_vertex_attrib_ptr(POSITION, 3, GL_FLOAT, GL_TRUE,
+			sizeof(gpu_vertex),
+			offsetof(gpu_vertex, normal));
+}
+
+void map_piece_mesh::gpu_dump_tri (int tri_id, gpu_vertex* dest)
+{
+}
+
+void map_piece_mesh::gpu_dump_quad (int quad_id, gpu_vertex* dest)
+{
+}
+
+void map_piece_mesh::gpu_dump_ngon (int ngon_id, gpu_vertex* dest)
+{
+}
+
+void map_piece_mesh::gpu_init ()
+{
+	assert(!this->gpu_is_initialized());
+
+	if (!this->faces_tri.empty()) {
+	}
+
+	if (!this->faces_quad.empty()) {
+	}
+
+	if (!this->faces_ngon.empty()) {
+	}
+}
+
+void map_piece_mesh::gpu_deinit ()
+{
+	assert(this->gpu_is_initialized());
+
+	this->gpu_tri.deinit();
+	this->gpu_quad.deinit();
+	this->gpu_ngon.deinit();
+}
+
+void map_piece_mesh::gpu_sync ()
+{
+	if (!this->gpu_is_initialized()) {
+		this->gpu_init();
+		return;
+	}
 }
 
 void map_piece_mesh::gpu_draw () const
@@ -187,21 +269,21 @@ void map_piece_mesh::gpu_draw () const
 
 	for (int i = 0; i < this->faces_tri.size(); i++) {
 		imm_normal(this->get_face_normal_tri(i));
-		draw_tri(this->faces_tri[i].vert_ids, 0, 1, 2);
+		draw_tri(this->faces_tri[i].verts, 0, 1, 2);
 	}
 
 	for (int i = 0; i < this->faces_quad.size(); i++) {
 		const face_quad& quad = this->faces_quad[i];
 		imm_normal(this->get_face_normal_quad(i));
-		draw_tri(quad.vert_ids, 0, 1, 2);
-		draw_tri(quad.vert_ids, 0, 2, 3);
+		draw_tri(quad.verts, 0, 1, 2);
+		draw_tri(quad.verts, 0, 2, 3);
 	}
 
 	for (int i = 0; i < this->faces_ngon.size(); i++) {
 		const face_ngon& ngon = this->faces_ngon[i];
 		imm_normal(this->get_face_normal_ngon(i));
 		for (int j = 2; j < ngon.num_verts; j++)
-			draw_tri(ngon.vert_ids, 0, j-1, j);
+			draw_tri(ngon.verts, 0, j-1, j);
 	}
 
 	imm_end();
