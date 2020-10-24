@@ -41,6 +41,8 @@ KEY_FUNC (keybind_camera_move)
 
 KEY_FUNC (keybind_change_mesh)
 {
+	if (pressed)
+		mesh_remove_face(viewport.map_piece, 0);
 }
 
 KEY_FUNC (keybind_print_mesh)

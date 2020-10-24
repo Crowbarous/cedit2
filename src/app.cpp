@@ -4,7 +4,6 @@
 #include "util.h"
 
 viewport3d_t viewport;
-map_piece_mesh some_map_piece;
 
 static GLuint mesh_program;
 
@@ -17,7 +16,7 @@ void app_init ()
 		  .z_near = 0.5, .z_far = 100.0 };
 	viewport.set_size(0, 0, 640, 480);
 
-	viewport.map_piece = &some_map_piece;
+	viewport.map_piece = mesh_new();
 
 	{
 		constexpr int vert_n = 5;
@@ -30,8 +29,8 @@ void app_init ()
 		};
 		int vert_ids[vert_n];
 		for (int i = 0; i < vert_n; i++)
-			vert_ids[i] = viewport.map_piece->add_vertex(vert_pos[i]);
-		viewport.map_piece->add_face(vert_ids, vert_n);
+			vert_ids[i] = mesh_add_vertex(viewport.map_piece, vert_pos[i]);
+		mesh_add_face(viewport.map_piece, vert_ids, vert_n);
 	}
 
 	GLuint shaders[2] = { glsl_load_shader("mesh.frag", GL_FRAGMENT_SHADER),
@@ -44,6 +43,7 @@ void app_init ()
 void app_deinit ()
 {
 	glsl_delete_program(mesh_program);
+	mesh_delete(viewport.map_piece);
 }
 
 
@@ -105,7 +105,7 @@ void viewport3d_t::render () const
 	glUseProgram(mesh_program);
 	glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(transform));
 
-	this->map_piece->gpu_draw();
+	mesh_gpu_draw(this->map_piece);
 }
 
 void viewport3d_t::set_size (int xl, int yl, int xh, int yh)

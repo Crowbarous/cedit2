@@ -1,137 +1,233 @@
 #include "map_edit.h"
+#include "active_bitset.h"
+#include "gl.h"
 #include "gl_immediate.h"
 #include "util.h"
 #include <cassert>
+#include <vector>
 
-int map_piece_mesh::add_vertex (vec3 position)
+struct vertex {
+	vec3 position;
+};
+
+/*
+ * Faces are treated differently depending on whether they are triangles,
+ * quads, or ngons. (They end up in different GPU buffers, too)
+ */
+enum face_type_t {
+	TRIANGLE,
+	QUAD,
+	NGON,
+};
+
+struct face {
+	face_type_t type;
+	/* Depending on `type`, is an index into different arrays */
+	int internal_id;
+};
+
+/*
+ * There will of course be code that is common to all or two of the face types.
+ * Such code can rely on structs having members with the names
+ *   `face_id`, `verts`, `num_verts`
+ */
+template <face_type_t> struct face_internal;
+template <> struct face_internal<TRIANGLE> {
+	constexpr static int num_verts = 3;
+	int verts[num_verts]; /* Indices into `map_mesh::verts` */
+	int face_id; /* Which `struct face` references this */
+
+	face_internal (int _) { }
+};
+template <> struct face_internal<QUAD> {
+	constexpr static int num_verts = 4;
+	int verts[num_verts];
+	int face_id;
+
+	face_internal (int _) { }
+};
+template <> struct face_internal<NGON> {
+	int* verts;
+	int num_verts;
+	int face_id;
+
+	face_internal (int nv)
+		: verts(new int[nv]),
+		  num_verts(nv) { }
+	face_internal& operator= (const face_internal& other)
+	{
+		if (this == &other)
+			return *this;
+		delete[] this->verts;
+		this->verts = other.verts;
+		this->num_verts = other.num_verts;
+		this->face_id = other.face_id;
+		return *this;
+	}
+	~face_internal ()
+	{
+		delete[] this->verts;
+	}
+};
+
+using face_tri = face_internal<TRIANGLE>;
+using face_quad = face_internal<QUAD>;
+using face_ngon = face_internal<NGON>;
+
+
+struct map_mesh {
+	std::vector<vertex> verts;
+	active_bitset verts_active;
+
+	std::vector<face> faces;
+	active_bitset faces_active;
+
+	bool vert_exists (int i) const { return verts_active.bit_is_set(i); }
+	bool face_exists (int i) const { return faces_active.bit_is_set(i); }
+
+	std::vector<face_tri> faces_tri;
+	std::vector<face_quad> faces_quad;
+	std::vector<face_ngon> faces_ngon;
+	/* Cannot have template member variables, so use a template getter */
+	template <face_type_t FACE_TYPE>
+	std::vector<face_internal<FACE_TYPE>>& get_internal_face_vector ();
+
+	vec3 get_face_normal_tri (int internal_face_id) const;
+	vec3 get_face_normal_quad (int internal_face_id) const;
+	vec3 get_face_normal_ngon (int internal_face_id) const;
+};
+
+
+
+template <> [[always_inline]]
+std::vector<face_tri>& map_mesh::get_internal_face_vector<TRIANGLE> ()
 {
-	int vert_id = this->verts_active.set_first_cleared();
-	assert(vert_id <= this->verts.size());
-	if (vert_id == this->verts.size())
-		this->verts.emplace_back();
+	return this->faces_tri;
+}
+template <> [[always_inline]]
+std::vector<face_quad>& map_mesh::get_internal_face_vector<QUAD> ()
+{
+	return this->faces_quad;
+}
+template <> [[always_inline]]
+std::vector<face_ngon>& map_mesh::get_internal_face_vector<NGON> ()
+{
+	return this->faces_ngon;
+}
 
-	this->verts[vert_id] = { .position = position };
+map_mesh* mesh_new ()
+{
+	return new map_mesh;
+}
 
+void mesh_delete (map_mesh*& m)
+{
+	delete m;
+	m = nullptr;
+}
+
+/* Adding elements */
+
+int mesh_add_vertex (map_mesh* m, vec3 position)
+{
+	int vert_id = m->verts_active.set_first_cleared();
+	assert(vert_id <= m->verts.size());
+	if (vert_id == m->verts.size())
+		m->verts.emplace_back();
+
+	m->verts[vert_id] = { .position = position };
 	return vert_id;
 }
 
-int map_piece_mesh::add_face (const int* vert_ids, int vert_num)
+template <face_type_t FACE_TYPE>
+static int mesh_add_face_low (
+		map_mesh* m,
+		const int* vert_ids,
+		int vert_num,
+		face_type_t& face_type_var)
+{
+	face_type_var = FACE_TYPE;
+
+	auto& vec = m->get_internal_face_vector<FACE_TYPE>();
+	int ret = vec.size();
+	vec.emplace_back(vert_num);
+	auto& f = vec.back();
+
+	memcpy(f.verts, vert_ids, sizeof(int) * vert_num);
+
+	return ret;
+}
+
+int mesh_add_face (map_mesh* m, const int* vert_ids, int vert_num)
 {
 	assert(vert_num >= 3);
 
-	int internal_face_id;
+	const int face_id = m->faces_active.set_first_cleared();
 	face_type_t face_type;
 
-	const int face_id = this->faces_active.set_first_cleared();
-
+	int id;
 	switch (vert_num) {
-	case 3: {
-		face_type = TRIANGLE;
-		internal_face_id = this->faces_tri.size();
-		this->faces_tri.emplace_back();
-		face_tri& tri = this->faces_tri.back();
-
-		tri.face_id = face_id;
-		memcpy(tri.verts, vert_ids, sizeof(int) * 3);
-
+	case 3:
+		id = mesh_add_face_low<TRIANGLE>(m, vert_ids, vert_num, face_type);
 		break;
-	}
-	case 4: {
-		face_type = QUAD;
-		internal_face_id = this->faces_tri.size();
-		this->faces_quad.emplace_back();
-		face_quad& quad = this->faces_quad.back();
-
-		quad.face_id = face_id;
-		memcpy(quad.verts, vert_ids, sizeof(int) * 4);
-
+	case 4:
+		id = mesh_add_face_low<QUAD>(m, vert_ids, vert_num, face_type);
 		break;
-	}
-	default: {
-		face_type = NGON;
-		internal_face_id = this->faces_ngon.size();
-		this->faces_ngon.emplace_back();
-		face_ngon& ngon = this->faces_ngon.back();
-
-		ngon.face_id = face_id;
-		ngon.verts = new int[vert_num];
-		ngon.num_verts = vert_num;
-		memcpy(ngon.verts, vert_ids, sizeof(int) * vert_num);
-
+	default:
+		id = mesh_add_face_low<NGON>(m, vert_ids, vert_num, face_type);
 		break;
-	}
-	}
+	};
 
-	assert(face_id <= this->faces.size());
-	if (face_id == this->faces.size())
-		this->faces.emplace_back();
-	this->faces[face_id] = { .type = face_type,
-	                         .internal_id = internal_face_id };
+	assert(face_id <= m->faces.size());
+	if (face_id == m->faces.size())
+		m->faces.emplace_back();
+	m->faces[face_id] = { .type = face_type,
+	                      .internal_id = id };
 
 	return face_id;
 }
 
-void map_piece_mesh::remove_face (int face_id)
+/* Removing elements */
+
+template <face_type_t FACE_TYPE>
+static void mesh_remove_face_low (map_mesh* m, int internal_id)
 {
-	assert(this->face_exists(face_id));
-	face& f = this->faces[face_id];
+	auto& vec = m->get_internal_face_vector<FACE_TYPE>();
+	face_internal<FACE_TYPE>& fi = vec.back();
 
-	int other_face_id = -1;
+	const int other_face_id = fi.face_id;
+	face& other_face = m->faces[other_face_id];
+	assert(m->face_exists(other_face_id));
+	assert(other_face.type == FACE_TYPE);
+	other_face.internal_id = internal_id;
 
-	switch (f.type) {
-	case TRIANGLE: {
-		other_face_id = this->faces_tri.back().face_id;
-		face& other_face = this->faces[other_face_id];
-		other_face.internal_id = f.internal_id;
-		assert(other_face.type == TRIANGLE);
-
-		container_replace_with_last(this->faces_tri, f.internal_id);
-
-		break;
-	}
-	case QUAD: {
-		other_face_id = this->faces_quad.back().face_id;
-		face& other_face = this->faces[other_face_id];
-		other_face.internal_id = f.internal_id;
-		assert(other_face.type == QUAD);
-
-		container_replace_with_last(this->faces_quad, f.internal_id);
-
-		break;
-	}
-	case NGON: {
-		other_face_id = this->faces_ngon.back().face_id;
-		face& other_face = this->faces[other_face_id];
-		other_face.internal_id = f.internal_id;
-		assert(other_face.type == NGON);
-
-		container_replace_with_last(this->faces_ngon, f.internal_id);
-
-		break;
-	}
-	}
-	assert(this->face_exists(other_face_id));
-
-	faces_active.clear_bit(face_id);
+	vec[internal_id] = vec.back();
+	vec.pop_back();
 }
 
-
-vec3 map_piece_mesh::get_face_normal (int face_id) const
+void mesh_remove_face (map_mesh* m, int face_id)
 {
-	assert(this->face_exists(face_id));
-	const face& f = this->faces[face_id];
+	assert(m->face_exists(face_id));
+
+	face& f = m->faces[face_id];
 	switch (f.type) {
 	case TRIANGLE:
-		return this->get_face_normal_tri(f.internal_id);
+		mesh_remove_face_low<TRIANGLE>(m, f.internal_id);
+		break;
 	case QUAD:
-		return this->get_face_normal_quad(f.internal_id);
+		mesh_remove_face_low<QUAD>(m, f.internal_id);
+		break;
 	case NGON:
-	default:
-		return this->get_face_normal_ngon(f.internal_id);
+		mesh_remove_face_low<NGON>(m, f.internal_id);
+		break;
 	}
+
+	m->faces_active.clear_bit(face_id);
 }
 
-vec3 map_piece_mesh::get_face_normal_tri (int id) const
+/* Face normals */
+
+vec3 map_mesh::get_face_normal_tri (int id) const
 {
 	const face_tri& tri = this->faces_tri[id];
 	int a = tri.verts[0];
@@ -142,7 +238,7 @@ vec3 map_piece_mesh::get_face_normal_tri (int id) const
 	return glm::normalize(glm::cross(delta1, delta2));
 }
 
-vec3 map_piece_mesh::get_face_normal_quad (int id) const
+vec3 map_mesh::get_face_normal_quad (int id) const
 {
 	// Find the vectors of two diagonals (which might themselves not
 	// intersect, since the quad is not necessarily planar) and cross them
@@ -156,7 +252,7 @@ vec3 map_piece_mesh::get_face_normal_quad (int id) const
 	return glm::normalize(glm::cross(delta1, delta2));
 }
 
-vec3 map_piece_mesh::get_face_normal_ngon (int id) const
+vec3 map_mesh::get_face_normal_ngon (int id) const
 {
 	// Find the normal "at" each vertex and average those
 	const face_ngon& ngon = this->faces_ngon[id];
@@ -175,113 +271,48 @@ vec3 map_piece_mesh::get_face_normal_ngon (int id) const
 	return glm::normalize(result);
 }
 
-/*
- * ================== GPU STUFF ==================
- */
-
-namespace shader_attrib_loc
+vec3 mesh_get_face_normal (map_mesh* m, int face_id)
 {
-constexpr static int POSITION = 0;
-constexpr static int NORMAL = 1;
-};
-
-void map_piece_mesh::gpu_drawable::init ()
-{
-	this->vao = gl_gen_vertex_array();
-	this->vbo = gl_gen_buffer();
-}
-
-void map_piece_mesh::gpu_drawable::deinit ()
-{
-	gl_delete_vertex_array(this->vao);
-	gl_delete_buffer(this->vbo);
-}
-
-void map_piece_mesh::gpu_drawable::bind () const
-{
-	glBindVertexArray(this->vao);
-	glBindBuffer(GL_ARRAY_BUFFER, this->vbo);
-}
-
-void map_piece_mesh::gpu_set_vertex_format ()
-{
-	using namespace shader_attrib_loc;
-	gl_vertex_attrib_ptr(POSITION, 3, GL_FLOAT, GL_FALSE,
-			sizeof(gpu_vertex),
-			offsetof(gpu_vertex, position));
-	gl_vertex_attrib_ptr(POSITION, 3, GL_FLOAT, GL_TRUE,
-			sizeof(gpu_vertex),
-			offsetof(gpu_vertex, normal));
-}
-
-void map_piece_mesh::gpu_dump_tri (int tri_id, gpu_vertex* dest)
-{
-}
-
-void map_piece_mesh::gpu_dump_quad (int quad_id, gpu_vertex* dest)
-{
-}
-
-void map_piece_mesh::gpu_dump_ngon (int ngon_id, gpu_vertex* dest)
-{
-}
-
-void map_piece_mesh::gpu_init ()
-{
-	assert(!this->gpu_is_initialized());
-
-	if (!this->faces_tri.empty()) {
-	}
-
-	if (!this->faces_quad.empty()) {
-	}
-
-	if (!this->faces_ngon.empty()) {
+	assert(m->face_exists(face_id));
+	face& f = m->faces[face_id];
+	switch (f.type) {
+	case TRIANGLE:
+		return m->get_face_normal_tri(f.internal_id);
+	case QUAD:
+		return m->get_face_normal_quad(f.internal_id);
+	case NGON:
+	default:
+		return m->get_face_normal_ngon(f.internal_id);
 	}
 }
 
-void map_piece_mesh::gpu_deinit ()
-{
-	assert(this->gpu_is_initialized());
+/* ============================== GPU STUFF ============================== */
 
-	this->gpu_tri.deinit();
-	this->gpu_quad.deinit();
-	this->gpu_ngon.deinit();
-}
-
-void map_piece_mesh::gpu_sync ()
-{
-	if (!this->gpu_is_initialized()) {
-		this->gpu_init();
-		return;
-	}
-}
-
-void map_piece_mesh::gpu_draw () const
+void mesh_gpu_draw (const map_mesh* m)
 {
 	imm_begin(GL_TRIANGLES);
 
-	auto draw_tri = [this] (const int* vert_ids, int a, int b, int c) {
-		imm_vertex(this->verts[vert_ids[a]].position);
-		imm_vertex(this->verts[vert_ids[b]].position);
-		imm_vertex(this->verts[vert_ids[c]].position);
+	auto draw_tri = [m] (const int* vert_ids, int a, int b, int c) {
+		imm_vertex(m->verts[vert_ids[a]].position);
+		imm_vertex(m->verts[vert_ids[b]].position);
+		imm_vertex(m->verts[vert_ids[c]].position);
 	};
 
-	for (int i = 0; i < this->faces_tri.size(); i++) {
-		imm_normal(this->get_face_normal_tri(i));
-		draw_tri(this->faces_tri[i].verts, 0, 1, 2);
+	for (int i = 0; i < m->faces_tri.size(); i++) {
+		imm_normal(m->get_face_normal_tri(i));
+		draw_tri(m->faces_tri[i].verts, 0, 1, 2);
 	}
 
-	for (int i = 0; i < this->faces_quad.size(); i++) {
-		const face_quad& quad = this->faces_quad[i];
-		imm_normal(this->get_face_normal_quad(i));
+	for (int i = 0; i < m->faces_quad.size(); i++) {
+		const face_quad& quad = m->faces_quad[i];
+		imm_normal(m->get_face_normal_quad(i));
 		draw_tri(quad.verts, 0, 1, 2);
 		draw_tri(quad.verts, 0, 2, 3);
 	}
 
-	for (int i = 0; i < this->faces_ngon.size(); i++) {
-		const face_ngon& ngon = this->faces_ngon[i];
-		imm_normal(this->get_face_normal_ngon(i));
+	for (int i = 0; i < m->faces_ngon.size(); i++) {
+		const face_ngon& ngon = m->faces_ngon[i];
+		imm_normal(m->get_face_normal_ngon(i));
 		for (int j = 2; j < ngon.num_verts; j++)
 			draw_tri(ngon.verts, 0, j-1, j);
 	}
