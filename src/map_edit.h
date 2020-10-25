@@ -64,21 +64,9 @@ private:
 	bool vert_exists (int i) const { return this->verts_active.bit_is_set(i); }
 	bool face_exists (int i) const { return this->faces_active.bit_is_set(i); }
 
-	/*
-	 * ================== GPU STUFF ==================
-	 */
+	/* ================== GPU STUFF ================== */
 
-	bool gpu_is_initialized () const { return this->gpu_tri.vao != 0; }
-	struct gpu_drawable {
-		GLuint vao = 0;
-		GLuint vbo = 0;
-		void init ();
-		void deinit ();
-		void bind () const;
-	};
-	gpu_drawable gpu_tri;
-	gpu_drawable gpu_quad;
-	gpu_drawable gpu_ngon;
+	friend struct map_piece_mesh_gpu;
 
 	struct gpu_vertex {
 		vec3 position;
@@ -86,15 +74,17 @@ private:
 	};
 
 	static void gpu_set_vertex_format ();
-	void gpu_dump_tri (int tri_id, gpu_vertex* dest);
-	void gpu_dump_quad (int quad_id, gpu_vertex* dest);
-	void gpu_dump_ngon (int ngon_id, gpu_vertex* dest);
 };
 
-namespace mesh_shader_attrib_loc
+namespace mesh_vertex_attrib
 {
-constexpr static int POSITION = 0;
-constexpr static int NORMAL = 1;
+constexpr int POSITION_LOC = 0;
+constexpr int POSITION_NUM_ELEMS = 3;
+constexpr GLenum POSITION_DATA_TYPE = GL_FLOAT;
+
+constexpr int NORMAL_LOC = 1;
+constexpr int NORMAL_NUM_ELEMS = 3;
+constexpr GLenum NORMAL_DATA_TYPE = GL_FLOAT;
 };
 
 #endif /* MAP_EDIT_H */

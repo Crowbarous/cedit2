@@ -175,86 +175,38 @@ vec3 map_piece_mesh::get_face_normal_ngon (int id) const
 	return glm::normalize(result);
 }
 
-/*
- * ================== GPU STUFF ==================
- */
-
-namespace shader_attrib_loc
-{
-constexpr static int POSITION = 0;
-constexpr static int NORMAL = 1;
-};
-
-void map_piece_mesh::gpu_drawable::init ()
-{
-	this->vao = gl_gen_vertex_array();
-	this->vbo = gl_gen_buffer();
-}
-
-void map_piece_mesh::gpu_drawable::deinit ()
-{
-	gl_delete_vertex_array(this->vao);
-	gl_delete_buffer(this->vbo);
-}
-
-void map_piece_mesh::gpu_drawable::bind () const
-{
-	glBindVertexArray(this->vao);
-	glBindBuffer(GL_ARRAY_BUFFER, this->vbo);
-}
+/* ================== GPU STUFF ================== */
 
 void map_piece_mesh::gpu_set_vertex_format ()
 {
-	using namespace shader_attrib_loc;
-	gl_vertex_attrib_ptr(POSITION, 3, GL_FLOAT, GL_FALSE,
+	using namespace mesh_vertex_attrib;
+
+	gl_vertex_attrib_ptr(
+			POSITION_LOC,
+			POSITION_NUM_ELEMS,
+			POSITION_DATA_TYPE,
+			GL_FALSE,
 			sizeof(gpu_vertex),
 			offsetof(gpu_vertex, position));
-	gl_vertex_attrib_ptr(POSITION, 3, GL_FLOAT, GL_TRUE,
+	gl_vertex_attrib_ptr(
+			NORMAL_LOC,
+			NORMAL_NUM_ELEMS,
+			NORMAL_DATA_TYPE,
+			GL_TRUE,
 			sizeof(gpu_vertex),
 			offsetof(gpu_vertex, normal));
 }
 
-void map_piece_mesh::gpu_dump_tri (int tri_id, gpu_vertex* dest)
-{
-}
-
-void map_piece_mesh::gpu_dump_quad (int quad_id, gpu_vertex* dest)
-{
-}
-
-void map_piece_mesh::gpu_dump_ngon (int ngon_id, gpu_vertex* dest)
-{
-}
-
 void map_piece_mesh::gpu_init ()
 {
-	assert(!this->gpu_is_initialized());
-
-	if (!this->faces_tri.empty()) {
-	}
-
-	if (!this->faces_quad.empty()) {
-	}
-
-	if (!this->faces_ngon.empty()) {
-	}
 }
 
 void map_piece_mesh::gpu_deinit ()
 {
-	assert(this->gpu_is_initialized());
-
-	this->gpu_tri.deinit();
-	this->gpu_quad.deinit();
-	this->gpu_ngon.deinit();
 }
 
 void map_piece_mesh::gpu_sync ()
 {
-	if (!this->gpu_is_initialized()) {
-		this->gpu_init();
-		return;
-	}
 }
 
 void map_piece_mesh::gpu_draw () const
