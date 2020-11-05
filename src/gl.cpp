@@ -70,6 +70,9 @@ void render_init ()
 void render_deinit ()
 {
 	imm_deinit();
+
+	SDL_GL_DeleteContext(rctx.gl_ctx);
+	SDL_DestroyWindow(rctx.window);
 	SDL_Quit();
 }
 

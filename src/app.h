@@ -17,7 +17,7 @@ struct viewport3d_t {
 	int dim_x_high;
 	int dim_y_high;
 
-	map_piece_mesh* map_piece;
+	map::mesh* map;
 
 	void render () const;
 	void set_size (int xl, int yl, int xh, int yh);

@@ -4,12 +4,18 @@
 #include "util.h"
 
 viewport3d_t viewport;
-map_piece_mesh some_map_piece;
+map::mesh some_mesh;
 
 static GLuint mesh_program;
 
 void app_init ()
 {
+	GLuint shaders[2] = { glsl_load_shader("mesh.frag", GL_FRAGMENT_SHADER),
+	                      glsl_load_shader("mesh.vert", GL_VERTEX_SHADER) };
+	mesh_program = glsl_link_program(shaders, 2);
+	for (GLuint& s: shaders)
+		glsl_delete_shader(s);
+
 	viewport.camera =
 		{ .pos = { 2.0, 2.0, 2.0 },
 		  .angles = { 0.0, 180.0, 0.0 },
@@ -17,28 +23,18 @@ void app_init ()
 		  .z_near = 0.5, .z_far = 100.0 };
 	viewport.set_size(0, 0, 640, 480);
 
-	viewport.map_piece = &some_map_piece;
+	viewport.map = &some_mesh;
 
-	{
-		constexpr int vert_n = 5;
-		vec3 vert_pos[vert_n] = {
-			{ 1.0, 1.0, 0.0 },
-			{ -1.0, 1.0, 0.0 },
-			{ -1.0, -1.0, 0.0 },
-			{ 1.0, -1.0, 0.0 },
-			{ 1.5, 0.0, 0.0 },
-		};
-		int vert_ids[vert_n];
-		for (int i = 0; i < vert_n; i++)
-			vert_ids[i] = viewport.map_piece->add_vertex(vert_pos[i]);
-		viewport.map_piece->add_face(vert_ids, vert_n);
-	}
-
-	GLuint shaders[2] = { glsl_load_shader("mesh.frag", GL_FRAGMENT_SHADER),
-	                      glsl_load_shader("mesh.vert", GL_VERTEX_SHADER) };
-	mesh_program = glsl_link_program(shaders, 2);
-	for (GLuint& s: shaders)
-		glsl_delete_shader(s);
+	// Add a square
+	constexpr int vert_num = 4;
+	const vec3 verts[vert_num] = { { 1.0, 1.0, 0.0 },
+	                               { -1.0, 1.0, 0.0 },
+	                               { -1.0, -1.0, 0.0 },
+	                               { 1.0, -1.0, 0.0 } };
+	int vert_ids[vert_num];
+	for (int i = 0; i < vert_num; i++)
+		vert_ids[i] = viewport.map->add_vertex(verts[i]);
+	viewport.map->add_face(vert_ids, vert_num);
 }
 
 void app_deinit ()
@@ -105,7 +101,7 @@ void viewport3d_t::render () const
 	glUseProgram(mesh_program);
 	glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(transform));
 
-	this->map_piece->gpu_draw();
+	this->map->gpu_draw();
 }
 
 void viewport3d_t::set_size (int xl, int yl, int xh, int yh)

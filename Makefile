@@ -14,14 +14,19 @@ WARNINGS = \
 APP-FLAGS = #--opengl-debug
 
 CC = g++
-override CFLAGS += -Og -g $(WARNINGS) --std=gnu++17 -Isrc -fmax-errors=1
+override CFLAGS += \
+	-Og -g \
+	$(WARNINGS) \
+	--std=gnu++17 \
+	-Isrc \
+	-fmax-errors=1
 
 FILES-CPP = $(shell find src/ -type f -name "*.cpp")
 FILES-O = $(FILES-CPP:$(SRC)/%.cpp=$(BIN)/%.o)
 
 LBITS = $(shell getconf LONG_BIT)
 
-LIBS = -lSDL2_image -lSDL2_ttf
+LIBS = -lSDL2_image -lSDL2_ttf -lSDL2_gfx
 
 ifeq ($(OS), Windows_NT)
 # Windows
@@ -76,3 +81,5 @@ rnu: run
 gdb: all
 	@echo "Debugging:"
 	gdb $(EXEC)
+valgrind: all
+	valgrind $(EXEC) --leak-check=full

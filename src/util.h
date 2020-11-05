@@ -52,7 +52,7 @@ std::ostream& debug_print_container (const T& v, std::ostream& s)
  * but templated so as to avoid including <vector> and maybe
  */
 template <class T>
-void container_replace_with_last (T& container, int index)
+void replace_with_last (T& container, int index)
 {
 	if (container.size() > 1)
 		container[index] = container.back();

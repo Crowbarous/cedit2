@@ -80,11 +80,16 @@ void active_bitset::clear_bit (int index)
 
 void active_bitset::set_bit (int index)
 {
-	const auto [high, low] = high_low_unpack(index);
-	// Make sure there is a bit where we are writing
-	if (high >= this->bitfields.size())
-		this->bitfields.resize(high + 1, 0);
-	this->bitfields[high] |= (T{1} << low);
+	if (index == this->first_cleared_bit) {
+		set_first_cleared();
+	} else if (index > this->first_cleared_bit) {
+		const auto [high, low] = high_low_unpack(index);
+		// Make sure there is a bit where we are writing
+		if (high >= this->bitfields.size())
+			this->bitfields.resize(high + 1, 0);
+		this->bitfields[high] |= (T{1} << low);
+	}
+	// Don't have to do anything if it's lesser than `first_cleared_bit`
 }
 
 void active_bitset::clear_all_bits ()
