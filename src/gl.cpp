@@ -12,14 +12,14 @@ struct render_state_t {
 	int res_x;
 	int res_y;
 	SDL_Window* window;
-	SDL_GLContext gl_ctx;
+	SDL_GLContext gl_context;
 };
-static render_state_t rctx;
+static render_state_t render_state;
 
 void render_init ()
 {
-	rctx.res_x = 640;
-	rctx.res_y = 480;
+	render_state.res_x = 640;
+	render_state.res_y = 480;
 
 	if (SDL_Init(SDL_INIT_VIDEO) < 0)
 		fatal("SDL init failed: %s", SDL_GetError());
@@ -30,14 +30,18 @@ void render_init ()
 
 	constexpr GLenum windowflags =
 		SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
-	rctx.window = SDL_CreateWindow("app",
+
+	render_state.window = SDL_CreateWindow("app",
 			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-			rctx.res_x, rctx.res_y, windowflags);
-	if (rctx.window == nullptr)
+			render_state.res_x,
+			render_state.res_y,
+			windowflags);
+
+	if (render_state.window == nullptr)
 		fatal("SDL window creation failed: %s", SDL_GetError());
 
-	rctx.gl_ctx = SDL_GL_CreateContext(rctx.window);
-	if (rctx.gl_ctx == nullptr)
+	render_state.gl_context = SDL_GL_CreateContext(render_state.window);
+	if (render_state.gl_context == nullptr)
 		fatal("SDL GL context creation failed: %s", SDL_GetError());
 
 	glewExperimental = true;
@@ -64,28 +68,28 @@ void render_init ()
 		glDebugMessageCallback(msg_callback, nullptr);
 	}
 
-	imm_init();
+	imm::init();
 }
 
 void render_deinit ()
 {
-	imm_deinit();
+	imm::deinit();
 
-	SDL_GL_DeleteContext(rctx.gl_ctx);
-	SDL_DestroyWindow(rctx.window);
+	SDL_GL_DeleteContext(render_state.gl_context);
+	SDL_DestroyWindow(render_state.window);
 	SDL_Quit();
 }
 
 
 void render_frame ()
 {
-	glViewport(0, 0, rctx.res_x, rctx.res_y);
+	glViewport(0, 0, render_state.res_x, render_state.res_y);
 	glClearColor(0.0, 0.0, 0.0, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	viewport.render();
 
-	SDL_GL_SwapWindow(rctx.window);
+	SDL_GL_SwapWindow(render_state.window);
 
 	if (GLenum err = glGetError(); err != 0)
 		warning("OpenGL error: %i (0x%x)", err, err);
@@ -93,8 +97,8 @@ void render_frame ()
 
 void render_resize_window (int w, int h)
 {
-	rctx.res_x = w;
-	rctx.res_y = h;
+	render_state.res_x = w;
+	render_state.res_y = h;
 }
 
 void gl_vertex_attrib_ptr (

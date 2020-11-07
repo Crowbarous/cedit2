@@ -1,14 +1,15 @@
 #ifndef ACTIVE_BITSET_H
 #define ACTIVE_BITSET_H
 
-#include <iosfwd>
 #include <vector>
+#include <cstdio>
 
 class active_bitset {
 private:
 	using T = size_t; /* Whatever the machine word is */
 	std::vector<T> bitfields;
 	int first_cleared_bit;
+	int total_set_bits;
 public:
 	using underlying_t = T;
 
@@ -25,8 +26,10 @@ public:
 	void clear_all_bits ();
 	void set_bit (int index);
 
+	int popcount () const;
+
 	/* Pretty-print over multiple lines (!) for debug */
-	friend std::ostream& operator<< (std::ostream&, active_bitset const&);
+	void dump_info (FILE* outstream) const;
 };
 
 #endif /* ACTIVE_BITSET_H */

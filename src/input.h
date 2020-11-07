@@ -13,9 +13,12 @@ struct keybind_t {
 	void* user_data;
 };
 
-
+/*
+ * The names of the arguments aren't macros, but make sure that
+ * it's clear they are related to the macro the function was defined with
+ */
 #define KEY_FUNC(name) \
-	void name ([[maybe_unused]] void* user_data, \
-	           [[maybe_unused]] bool pressed)
+	void name ([[maybe_unused]] void* KEY_FUNC_USER_DATA, \
+	           [[maybe_unused]] bool KEY_FUNC_PRESSED)
 
 #endif /* INPUT_H */

@@ -13,7 +13,8 @@ namespace map
 	static_assert(sizeof(face) == sizeof(face::vert_ids) \
 	                            + sizeof(face::num_verts) \
 	                            + sizeof(face::internal_id), \
-		"Struct map::mesh::face changed!!! Revisit this function")
+		"Struct map::mesh::face changed!!! Revisit all functions " \
+		"with this assertion before updating the macro")
 
 
 mesh::mesh () { }
@@ -106,8 +107,21 @@ void mesh::remove_face (int face_id)
 	assert(this->face_exists(face_id));
 
 	face& f = this->faces[face_id];
-	int other_face_id;
 
+	for (int i = 0; i < f.num_verts; i++) {
+		const int vert_id = f.vert_ids[i];
+		vertex& v = this->verts[vert_id];
+		assert(v.faces_referencing > 0);
+		v.faces_referencing--;
+		if (v.faces_referencing == 0) {
+			// TODO: For now, just kill "stray" vertices; but since vertex
+			// IDs are user-facing, the user code will not expect vertices
+			// to which it holds IDs to die, so think of something else
+			this->remove_vert(vert_id);
+		}
+	}
+
+	int other_face_id;
 	switch (f.num_verts) {
 	case 3:
 		other_face_id = this->face_indices_tri.back();
@@ -123,24 +137,48 @@ void mesh::remove_face (int face_id)
 		break;
 	}
 
-	assert(this->face_exists(other_face_id));
-	this->faces[other_face_id].internal_id = f.internal_id;
+	if (other_face_id != face_id) {
+		assert(this->face_exists(other_face_id));
+		this->faces[other_face_id].internal_id = f.internal_id;
+	}
 
 	faces_active.clear_bit(face_id);
 	f = { .vert_ids = nullptr,
-	      .num_verts = 0,
-	      .internal_id = 0 };
+		.num_verts = 0,
+		.internal_id = 0 };
+}
+
+void mesh::remove_vert (int vert_id)
+{
+	assert(this->vert_exists(vert_id));
+	this->verts_active.clear_bit(vert_id);
+
+	vertex& v = this->verts[vert_id];
+	assert(v.faces_referencing == 0);
+	v = { .position = vec3(0.0),
+	      .faces_referencing = 0 };
+}
+
+vec3 mesh::get_vert_pos (int vert_id) const
+{
+	assert(this->vert_exists(vert_id));
+	return this->verts[vert_id].position;
 }
 
 
-#define VERT_POS(i) (this->verts[f.vert_ids[i]].position)
+static vec3 normalize_or_zero (vec3 v)
+{
+	return (v == vec3(0.0)) ? v : glm::normalize(v);
+}
+
+#define VERT_POS(i) (this->get_vert_pos(f.vert_ids[i]))
 vec3 mesh::get_face_normal_tri (int face_id) const
 {
 	// Simply cross some two edges
 	const face& f = this->faces[face_id];
 	const vec3 edge1 = VERT_POS(0) - VERT_POS(1);
 	const vec3 edge2 = VERT_POS(0) - VERT_POS(2);
-	return glm::normalize(glm::cross(edge1, edge2));
+	return normalize_or_zero(glm::cross(edge1, edge2));
 }
 
 vec3 mesh::get_face_normal_quad (int face_id) const
@@ -150,7 +188,7 @@ vec3 mesh::get_face_normal_quad (int face_id) const
 	const face& f = this->faces[face_id];
 	const vec3 diag1 = VERT_POS(0) - VERT_POS(2);
 	const vec3 diag2 = VERT_POS(1) - VERT_POS(3);
-	return glm::normalize(glm::cross(diag1, diag2));
+	return normalize_or_zero(glm::cross(diag1, diag2));
 }
 
 vec3 mesh::get_face_normal_ngon (int face_id) const
@@ -170,7 +208,7 @@ vec3 mesh::get_face_normal_ngon (int face_id) const
 	for (int i = 0; i < n; i++)
 		result += glm::cross(edges[i], edges[(i + 1) % n]);
 
-	return glm::normalize(result);
+	return normalize_or_zero(result);
 }
 #undef VERT_POS
 
@@ -190,34 +228,88 @@ vec3 mesh::get_face_normal (int face_id) const
 
 void mesh::gpu_draw () const
 {
-	imm_begin(GL_TRIANGLES);
+	imm::begin(GL_TRIANGLES);
 
 	auto triangle = [this] (int face_id, int a, int b, int c) -> void {
-#define VERT_POS(i) (this->verts[this->faces[face_id].vert_ids[i]].position)
-		imm_vertex(VERT_POS(a));
-		imm_vertex(VERT_POS(b));
-		imm_vertex(VERT_POS(c));
+		auto& f = this->faces[face_id];
+#define VERT_POS(i) (this->get_vert_pos(f.vert_ids[i]))
+		imm::vertex(VERT_POS(a));
+		imm::vertex(VERT_POS(b));
+		imm::vertex(VERT_POS(c));
 #undef VERT_POS
 	};
 
-	for (int face_id: face_indices_tri) {
-		imm_normal(get_face_normal_tri(face_id));
-		triangle(face_id, 0, 1, 2);
-	}
-
-	for (int face_id: face_indices_quad) {
-		imm_normal(get_face_normal_quad(face_id));
-		triangle(face_id, 0, 1, 2);
-		triangle(face_id, 0, 2, 3);
-	}
-
-	for (int face_id: face_indices_ngon) {
-		imm_normal(get_face_normal_ngon(face_id));
+#if 1
+	// One way: just render everything as is (only works with immediate)
+	for (int face_id = 0; face_id < this->faces.size(); face_id++) {
+		if (!this->face_exists(face_id))
+			continue;
+		imm::normal(this->get_face_normal(face_id));
 		for (int i = 2; i < this->faces[face_id].num_verts; i++)
 			triangle(face_id, 0, i-1, i);
 	}
+#else
+	// Another way: render triangles, quads, and ngons separately
+	for (int face_id: this->face_indices_tri) {
+		imm::normal(this->get_face_normal_tri(face_id));
+		triangle(face_id, 0, 1, 2);
+	}
+	for (int face_id: this->face_indices_quad) {
+		imm::normal(this->get_face_normal_quad(face_id));
+		triangle(face_id, 0, 1, 2);
+		triangle(face_id, 0, 2, 3);
+	}
+	for (int face_id: this->face_indices_ngon) {
+		imm::normal(this->get_face_normal_ngon(face_id));
+		for (int i = 2; i < this->faces[face_id].num_verts; i++)
+			triangle(face_id, 0, i-1, i);
+	}
+#endif
+	imm::end();
+}
 
-	imm_end();
+
+template <typename print_func>
+static void print_sanely (FILE* os, size_t size, print_func f)
+{
+	constexpr static int MAX_SIZE_FOR_OUTPUT = 256;
+	if (size == 0)
+		fputs("<none>", os);
+	else if ((int) size > MAX_SIZE_FOR_OUTPUT)
+		fputs("<a lot>", os);
+	else
+		f();
+}
+
+void mesh::dump_info (FILE* os) const
+{
+	fprintf(os, "Mesh at %p:\n", this);
+
+	fprintf(os, "Vertices: %i total, active:\n", (int) this->verts.size());
+	print_sanely(os, this->verts.size(), [&] { this->verts_active.dump_info(os); });
+
+	fprintf(os, "Faces: %i total, active:\n", (int) this->faces.size());
+	print_sanely(os, this->faces.size(), [&] { this->verts_active.dump_info(os); });
+
+	fputs("Ownership indices:", os);
+
+	fputs("\ntris:  ", os);
+	print_sanely(os, this->face_indices_tri.size(), [&] {
+			for (int i: this->face_indices_tri)
+				fprintf(os, "%i ", i);
+		});
+
+	fputs("\nquads: ", os);
+	print_sanely(os, this->face_indices_quad.size(), [&] {
+			for (int i: this->face_indices_quad)
+				fprintf(os, "%i ", i);
+		});
+
+	fputs("\nngons: ", os);
+	print_sanely(os, this->face_indices_ngon.size(), [&] {
+			for (int i: this->face_indices_ngon)
+				fprintf(os, "%i ", i);
+		});
 }
 
 } /* namespace map */

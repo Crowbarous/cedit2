@@ -4,23 +4,34 @@
 #include "gl.h"
 #include "math.h"
 
-void imm_init ();
-void imm_deinit ();
+/*
+ * An imitation of the old OpenGL immediate mode rendering,
+ * with the principle of "getting something to draw", though
+ * not efficiently at all.
+ */
 
-void imm_begin (GLenum render_mode);
-void imm_end ();
+namespace imm
+{
 
-void imm_vertex (vec3);
-void imm_normal (vec3);
-void imm_tex_coord (vec2);
-void imm_color (vec3);
+void init ();
+void deinit ();
 
-namespace imm_attrib_loc
+void begin (GLenum render_mode);
+void end ();
+
+void vertex (vec3);
+void normal (vec3);
+void tex_coord (vec2);
+void color (vec3);
+
+namespace attrib_loc
 {
 static constexpr int POSITION = 0;
 static constexpr int NORMAL = 1;
 static constexpr int TEX_COORD = 2;
 static constexpr int COLOR = 3;
 }
+
+} /* namespace imm */
 
 #endif /* GL_IMMEDIATE_H */

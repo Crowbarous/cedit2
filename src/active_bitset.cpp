@@ -24,7 +24,10 @@ static int high_low_pack (int high, int low)
 	return (high << bits_low) | low;
 }
 
-active_bitset::active_bitset (): bitfields({ 0 }), first_cleared_bit(0) { }
+active_bitset::active_bitset ()
+{
+	this->clear_all_bits();
+}
 
 int active_bitset::set_first_cleared ()
 {
@@ -32,6 +35,7 @@ int active_bitset::set_first_cleared ()
 	auto [high, low] = high_low_unpack(this->first_cleared_bit);
 
 	this->bitfields[high] |= (T{1} << low);
+	total_set_bits++;
 
 	// Search forward to set the next cleared bit
 	for (; high < bitfields.size(); high++) {
@@ -58,6 +62,7 @@ void active_bitset::set_first_n_only (int n)
 	this->bitfields = std::vector<T>(high + 1, ~T{0});
 	this->bitfields.back() = (T{1} << low) - 1;
 	this->first_cleared_bit = n;
+	this->total_set_bits = n;
 }
 
 bool active_bitset::bit_is_set (int index) const
@@ -71,8 +76,10 @@ void active_bitset::clear_bit (int index)
 {
 	const auto [high, low] = high_low_unpack(index);
 	// If there is no bit, then we are done
-	if (high >= this->bitfields.size())
+	if (high >= this->bitfields.size() || this->bit_is_set(index))
 		return;
+
+	this->total_set_bits--;
 	this->bitfields[high] &= ~T{T{1} << low};
 	if (index < this->first_cleared_bit)
 		this->first_cleared_bit = index;
@@ -87,7 +94,10 @@ void active_bitset::set_bit (int index)
 		// Make sure there is a bit where we are writing
 		if (high >= this->bitfields.size())
 			this->bitfields.resize(high + 1, 0);
-		this->bitfields[high] |= (T{1} << low);
+		if (!this->bit_is_set(index)) {
+			this->bitfields[high] |= (T{1} << low);
+			this->total_set_bits++;
+		}
 	}
 	// Don't have to do anything if it's lesser than `first_cleared_bit`
 }
@@ -96,20 +106,30 @@ void active_bitset::clear_all_bits ()
 {
 	this->bitfields = { 0 };
 	this->first_cleared_bit = 0;
+	this->total_set_bits = 0;
 }
 
-std::ostream& operator<< (std::ostream& s, active_bitset const& bs)
+int active_bitset::popcount () const
 {
-	for (active_bitset::underlying_t element: bs.bitfields) {
+	return this->total_set_bits;
+}
+
+void active_bitset::dump_info (FILE* os) const
+{
+	fprintf(os, "min cleared = %i, popcount = %i, num bitfields = %i\n",
+			this->first_cleared_bit,
+			this->total_set_bits,
+			(int) this->bitfields.size());
+
+	for (T element: this->bitfields) {
 		for (int i = 0; i < bits_per_elem; i++) {
-			s << (element & 1 ? 'X' : '.');
+			fputc(element & 1 ? 'X' : '.', os);
 			element >>= 1;
 			if ((i & 7) == 7)
-				s << ' ';
+				fputc(' ', os);
 		}
-		s << '\n';
+		fputc('\n', os);
 	}
-	return s;
 }
 
 #ifndef NDEBUG
@@ -150,7 +170,7 @@ void active_bitset_interactive_test ()
 			break;
 		}
 
-		std::cout << bs << std::flush;
+		bs.dump_info(stdout);
 	}
 }
 #endif

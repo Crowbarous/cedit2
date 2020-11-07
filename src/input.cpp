@@ -15,26 +15,26 @@ KEY_FUNC (keybind_quit)
 
 KEY_FUNC (keybind_camera_move)
 {
-	switch ((char) ((uintptr_t) user_data & 0xFF)) {
+	switch ((char) ((uintptr_t) KEY_FUNC_USER_DATA & 0xFF)) {
 	case 'f':
-		camera_move_flags.forward = pressed;
+		camera_move_flags.forward = KEY_FUNC_PRESSED;
 		break;
 	case 'b':
-		camera_move_flags.backward = pressed;
+		camera_move_flags.backward = KEY_FUNC_PRESSED;
 		break;
 	case 'l':
-		camera_move_flags.left = pressed;
+		camera_move_flags.left = KEY_FUNC_PRESSED;
 		break;
 	case 'r':
-		camera_move_flags.right = pressed;
+		camera_move_flags.right = KEY_FUNC_PRESSED;
 		break;
 	case 'F':
-		camera_move_flags.speed = pressed ? move_flags_t::FAST
-		                                  : move_flags_t::NORMAL;
+		camera_move_flags.speed = KEY_FUNC_PRESSED ? move_flags_t::FAST
+		                                           : move_flags_t::NORMAL;
 		break;
 	case 'S':
-		camera_move_flags.speed = pressed ? move_flags_t::SLOW
-		                                  : move_flags_t::NORMAL;
+		camera_move_flags.speed = KEY_FUNC_PRESSED ? move_flags_t::SLOW
+		                                           : move_flags_t::NORMAL;
 		break;
 	}
 }
@@ -45,6 +45,10 @@ KEY_FUNC (keybind_change_mesh)
 
 KEY_FUNC (keybind_print_mesh)
 {
+	if (KEY_FUNC_PRESSED) {
+		viewport.map->dump_info(stdout);
+		fflush(stdout);
+	}
 }
 
 void mouse_bind (int x, int y, int dx, int dy)
@@ -65,7 +69,7 @@ void mouse_bind (int x, int y, int dx, int dy)
 
 KEY_FUNC (keybind_toggle_mousegrab)
 {
-	if (!pressed)
+	if (!KEY_FUNC_PRESSED)
 		return;
 	app_mousegrab ^= true;
 	SDL_SetRelativeMouseMode(app_mousegrab ? SDL_TRUE : SDL_FALSE);

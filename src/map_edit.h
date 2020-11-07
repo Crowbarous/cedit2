@@ -1,11 +1,10 @@
 #ifndef MAP_EDIT_H
 #define MAP_EDIT_H
 
+#include "active_bitset.h"
 #include "gl.h"
 #include "math.h"
 #include "util.h"
-#include "active_bitset.h"
-#include <memory>
 
 namespace map
 {
@@ -21,6 +20,7 @@ public:
 
 	void gpu_draw () const;
 
+	vec3 get_vert_pos (int vert_id) const;
 	vec3 get_face_normal (int face_id) const;
 
 	mesh ();
@@ -29,6 +29,8 @@ public:
 	mesh (mesh&&) = delete;
 	mesh& operator= (const mesh&) = delete;
 	mesh& operator= (mesh&&) = delete;
+
+	void dump_info (FILE* outstream) const;
 
 private:
 	struct vertex {
@@ -51,11 +53,10 @@ private:
 	std::vector<int> face_indices_ngon;
 
 	void construct_face_at_id (int, const int*, int);
+	void remove_vert (int vert_id);
 
 	bool vert_exists (int i) const { return this->verts_active.bit_is_set(i); }
 	bool face_exists (int i) const { return this->faces_active.bit_is_set(i); }
-
-	void remove_vertex (int);
 
 	/*
 	 * These STILL receive `face_ids` and not `internal_id`s, because
