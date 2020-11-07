@@ -27,6 +27,13 @@ static int high_low_pack (int high, int low)
 active_bitset::active_bitset ()
 {
 	this->clear_all_bits();
+
+	// put this in the constructor to access private fields, whatever
+	static_assert(sizeof(active_bitset) == sizeof(active_bitset::bitfields)
+			                     + sizeof(active_bitset::first_cleared_bit)
+			                     + sizeof(active_bitset::total_set_bits),
+			"The structure of active_bitset has changed!! "
+			"Revisit pretty much every member function!");
 }
 
 int active_bitset::set_first_cleared ()
@@ -69,14 +76,14 @@ bool active_bitset::bit_is_set (int index) const
 {
 	const auto [high, low] = high_low_unpack(index);
 	return high < this->bitfields.size()
-		&& (this->bitfields[high] & (1 << low)) != 0;
+		&& (this->bitfields[high] & (T{1} << low)) != 0;
 }
 
 void active_bitset::clear_bit (int index)
 {
 	const auto [high, low] = high_low_unpack(index);
 	// If there is no bit, then we are done
-	if (high >= this->bitfields.size() || this->bit_is_set(index))
+	if (high >= this->bitfields.size() || !this->bit_is_set(index))
 		return;
 
 	this->total_set_bits--;

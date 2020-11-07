@@ -3,6 +3,7 @@
 #include "gl.h"
 #include "app.h"
 #include <map>
+#include <queue>
 
 bool app_quit;
 bool app_mousegrab = false;
@@ -41,14 +42,48 @@ KEY_FUNC (keybind_camera_move)
 
 KEY_FUNC (keybind_change_mesh)
 {
+	if (!KEY_FUNC_PRESSED)
+		return;
+
+	static mat4 shape_transform(1.0);
+	static std::queue<int> faces_to_remove;
+	static constexpr int vert_num = 4;
+	static const vec3 shape[vert_num] = { { 1.0, 1.0, 0.0 },
+	                                      { -1.0, 1.0, 0.0 },
+	                                      { -1.0, -1.0, 0.0 },
+	                                      { 1.0, -1.0, 0.0 } };
+
+	switch ((uintptr_t) KEY_FUNC_USER_DATA) {
+	case 0: {
+		int vert_ids[vert_num];
+		for (int i = 0; i < vert_num; i++) {
+			const vec3 v = shape_transform * vec4(shape[i], 1.0);
+			vert_ids[i] = viewport.map->add_vertex(v);
+		}
+		faces_to_remove.push(viewport.map->add_face(vert_ids, vert_num));
+		shape_transform = glm::translate(shape_transform, vec3(0.0, 1.0, 0.0));
+		shape_transform = glm::rotate(
+				shape_transform,
+				(float) (M_PI / 6.0),
+				vec3(1.0, 0.0, 0.0));
+		break;
+	}
+	case 1: {
+		if (!faces_to_remove.empty()) {
+			viewport.map->remove_face(faces_to_remove.front());
+			faces_to_remove.pop();
+		}
+		break;
+	}
+	}
 }
 
 KEY_FUNC (keybind_print_mesh)
 {
-	if (KEY_FUNC_PRESSED) {
-		viewport.map->dump_info(stdout);
-		fflush(stdout);
-	}
+	if (!KEY_FUNC_PRESSED)
+		return;
+	viewport.map->dump_info(stdout);
+	fflush(stdout);
 }
 
 void mouse_bind (int x, int y, int dx, int dy)
@@ -80,7 +115,10 @@ void input_init ()
 	app_quit = false;
 
 	keybinds[SDL_SCANCODE_Q] = { keybind_quit, nullptr };
-	keybinds[SDL_SCANCODE_P] = { keybind_change_mesh, nullptr };
+
+	keybinds[SDL_SCANCODE_P] = { keybind_change_mesh, (void*) 0 };
+	keybinds[SDL_SCANCODE_L] = { keybind_change_mesh, (void*) 1 };
+
 	keybinds[SDL_SCANCODE_O] = { keybind_print_mesh, nullptr };
 
 	keybinds[SDL_SCANCODE_W] = { keybind_camera_move, (void*) 'f' };

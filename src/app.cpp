@@ -24,17 +24,6 @@ void app_init ()
 	viewport.set_size(0, 0, 640, 480);
 
 	viewport.map = &some_mesh;
-
-	// Add a square
-	constexpr int vert_num = 4;
-	const vec3 verts[vert_num] = { { 1.0, 1.0, 0.0 },
-	                               { -1.0, 1.0, 0.0 },
-	                               { -1.0, -1.0, 0.0 },
-	                               { 1.0, -1.0, 0.0 } };
-	int vert_ids[vert_num];
-	for (int i = 0; i < vert_num; i++)
-		vert_ids[i] = viewport.map->add_vertex(verts[i]);
-	viewport.map->add_face(vert_ids, vert_num);
 }
 
 void app_deinit ()

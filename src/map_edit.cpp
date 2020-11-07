@@ -289,7 +289,7 @@ void mesh::dump_info (FILE* os) const
 	print_sanely(os, this->verts.size(), [&] { this->verts_active.dump_info(os); });
 
 	fprintf(os, "Faces: %i total, active:\n", (int) this->faces.size());
-	print_sanely(os, this->faces.size(), [&] { this->verts_active.dump_info(os); });
+	print_sanely(os, this->faces.size(), [&] { this->faces_active.dump_info(os); });
 
 	fputs("Ownership indices:", os);
 
