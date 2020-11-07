@@ -110,20 +110,33 @@ void gl_vertex_attrib_ptr (
 		size_t start_pointer)
 {
 	glEnableVertexAttribArray(attrib_location);
-	glVertexAttribPointer(
-			attrib_location,
-			num_elements,
-			data_type,
-			should_normalize,
-			stride,
-			(void*) start_pointer);
+	switch (data_type) {
+	case GL_BYTE:
+	case GL_UNSIGNED_BYTE:
+	case GL_SHORT:
+	case GL_UNSIGNED_SHORT:
+	case GL_INT:
+	case GL_UNSIGNED_INT:
+		glVertexAttribIPointer(attrib_location, num_elements,
+				data_type, stride, (void*) start_pointer);
+		break;
+	case GL_DOUBLE:
+		glVertexAttribLPointer(attrib_location, num_elements,
+				data_type, stride, (void*) start_pointer);
+		break;
+	default:
+		glVertexAttribPointer(attrib_location, num_elements, data_type,
+				should_normalize, stride, (void*) start_pointer);
+		break;
+	}
 }
 
 GLuint gl_gen_vertex_array ()
 {
 	GLuint r;
 	glGenVertexArrays(1, &r);
-	assert(r != 0);
+	if (unlikely(r == 0))
+		fatal("Couldn\'t allocate an OpenGL vertex array");
 	return r;
 }
 
@@ -137,7 +150,8 @@ GLuint gl_gen_buffer ()
 {
 	GLuint r;
 	glGenBuffers(1, &r);
-	assert(r != 0);
+	if (unlikely(r == 0))
+		fatal("Couldn\'t allocate an OpenGL buffer");
 	return r;
 }
 

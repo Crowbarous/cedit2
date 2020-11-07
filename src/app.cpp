@@ -90,6 +90,7 @@ void viewport3d_t::render () const
 	glUseProgram(mesh_program);
 	glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(transform));
 
+	this->map->gpu_sync();
 	this->map->gpu_draw();
 }
 

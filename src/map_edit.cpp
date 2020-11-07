@@ -1,5 +1,4 @@
 #include "map_edit.h"
-#include "gl_immediate.h"
 #include <cassert>
 
 namespace map
@@ -225,49 +224,154 @@ vec3 mesh::get_face_normal (int face_id) const
 	}
 }
 
+/* ======================= GPU STUFF ======================= */
+
+/* Vertex format */
+void mesh::gpu_set_attrib_pointers ()
+{
+	using namespace mesh_vertex_attrib;
+	gl_vertex_attrib_ptr(
+			POSITION_LOC,
+			POSITION_NUM_ELEMS,
+			POSITION_DATA_TYPE,
+			GL_FALSE,
+			sizeof(gpu_vertex),
+			offsetof(gpu_vertex, position));
+	gl_vertex_attrib_ptr(
+			NORMAL_LOC,
+			NORMAL_NUM_ELEMS,
+			NORMAL_DATA_TYPE,
+			GL_TRUE,
+			sizeof(gpu_vertex),
+			offsetof(gpu_vertex, normal));
+	gl_vertex_attrib_ptr(
+			FACEID_LOC,
+			FACEID_NUM_ELEMS,
+			FACEID_DATA_TYPE,
+			GL_FALSE,
+			sizeof(gpu_vertex),
+			offsetof(gpu_vertex, face_id));
+}
+
+
+/* gpu_drawn_buffer */
+
+constexpr int BUFFER_MIN_CAPACITY = 32;
+
+void mesh::gpu_drawn_buffer::init (
+		const gpu_vertex* initial_data,
+		int initial_size)
+{
+	this->vertex_array = gl_gen_vertex_array();
+	this->buffer = gl_gen_buffer();
+
+	this->size = initial_size;
+	this->capacity = std::max(initial_size, BUFFER_MIN_CAPACITY);
+
+	glBindBuffer(GL_ARRAY_BUFFER, this->buffer);
+	glBufferData(GL_ARRAY_BUFFER,
+	             sizeof(gpu_vertex) * this->capacity,
+		     initial_data,
+		     GL_STREAM_DRAW);
+}
+
+void mesh::gpu_drawn_buffer::deinit ()
+{
+	gl_delete_buffer(this->buffer);
+	gl_delete_vertex_array(this->vertex_array);
+}
+
+/*
+ * Triangulating faces into a given buffer.
+ * TODO: actual good triangulation algorithms
+ */
+
+/*
+ * !!! This macro relies on those functions
+ * defining all those variables under the same names
+ * */
+#define DUMP_SINGLE_TRIANGLE(destination, v1, v2, v3) \
+	do { \
+		int _dest_offs = 0; \
+		for (int _idx: { v1, v2, v3 }) { \
+			(destination)[_dest_offs++] \
+				= { .position = this->get_vert_pos(f.vert_ids[_idx]), \
+			            .normal = (normal), \
+			            .face_id = (face_id) }; \
+		} \
+	} while (0)
+
+void mesh::gpu_dump_face_tri (gpu_vertex* destination, int face_id) const
+{
+	// Triangulating a triangle isn't too hard...
+	assert(this->face_exists(face_id));
+	const face& f = this->faces[face_id];
+	const vec3 normal = this->get_face_normal_tri(face_id);
+	DUMP_SINGLE_TRIANGLE(destination, 0, 1, 2);
+}
+
+void mesh::gpu_dump_face_quad (gpu_vertex* destination, int face_id) const
+{
+	assert(this->face_exists(face_id));
+	const face& f = this->faces[face_id];
+	const vec3 normal = this->get_face_normal_quad(face_id);
+
+	// Split along the 0-2 diagonal, whatever
+	DUMP_SINGLE_TRIANGLE(destination, 0, 1, 2);
+	DUMP_SINGLE_TRIANGLE(destination + 3, 0, 2, 3);
+}
+
+void mesh::gpu_dump_face_ngon (gpu_vertex* destination, int face_id) const
+{
+	assert(this->face_exists(face_id));
+	const face& f = this->faces[face_id];
+	const vec3 normal = this->get_face_normal_ngon(face_id);
+
+	// Pan triangulation
+	for (int i = 2; i < f.num_verts; i++)
+		DUMP_SINGLE_TRIANGLE(destination + 3*(i-2), 0, i-1, i);
+}
+
+/* The higher-level GPU functions */
+
+bool mesh::gpu_is_initialized () const
+{
+	return this->gpu_tris.vertex_array != 0;
+}
+
+void mesh::gpu_init ()
+{
+	assert(!this->gpu_is_initialized());
+
+	// TODO!!!
+	this->gpu_tris.init(nullptr, 0);
+	this->gpu_quads.init(nullptr, 0);
+	this->gpu_ngons.init(nullptr, 0);
+}
+
+void mesh::gpu_deinit ()
+{
+	assert(this->gpu_is_initialized());
+
+	this->gpu_tris.deinit();
+	this->gpu_quads.deinit();
+	this->gpu_ngons.deinit();
+}
+
+void mesh::gpu_sync ()
+{
+	if (!this->gpu_is_initialized())
+		return this->gpu_init();
+}
 
 void mesh::gpu_draw () const
 {
-	imm::begin(GL_TRIANGLES);
-
-	auto triangle = [this] (int face_id, int a, int b, int c) -> void {
-		auto& f = this->faces[face_id];
-#define VERT_POS(i) (this->get_vert_pos(f.vert_ids[i]))
-		imm::vertex(VERT_POS(a));
-		imm::vertex(VERT_POS(b));
-		imm::vertex(VERT_POS(c));
-#undef VERT_POS
-	};
-
-#if 1
-	// One way: just render everything as is (only works with immediate)
-	for (int face_id = 0; face_id < this->faces.size(); face_id++) {
-		if (!this->face_exists(face_id))
-			continue;
-		imm::normal(this->get_face_normal(face_id));
-		for (int i = 2; i < this->faces[face_id].num_verts; i++)
-			triangle(face_id, 0, i-1, i);
-	}
-#else
-	// Another way: render triangles, quads, and ngons separately
-	for (int face_id: this->face_indices_tri) {
-		imm::normal(this->get_face_normal_tri(face_id));
-		triangle(face_id, 0, 1, 2);
-	}
-	for (int face_id: this->face_indices_quad) {
-		imm::normal(this->get_face_normal_quad(face_id));
-		triangle(face_id, 0, 1, 2);
-		triangle(face_id, 0, 2, 3);
-	}
-	for (int face_id: this->face_indices_ngon) {
-		imm::normal(this->get_face_normal_ngon(face_id));
-		for (int i = 2; i < this->faces[face_id].num_verts; i++)
-			triangle(face_id, 0, i-1, i);
-	}
-#endif
-	imm::end();
+	// this->gpu_tris.draw();
+	// this->gpu_quads.draw();
+	// this->gpu_ngons.draw();
 }
 
+/* ==================== UBER FUCTION TO DUMP ALL THE INFO ==================== */
 
 template <typename print_func>
 static void print_sanely (FILE* os, size_t size, print_func f)
@@ -298,18 +402,27 @@ void mesh::dump_info (FILE* os) const
 			for (int i: this->face_indices_tri)
 				fprintf(os, "%i ", i);
 		});
-
 	fputs("\nquads: ", os);
 	print_sanely(os, this->face_indices_quad.size(), [&] {
 			for (int i: this->face_indices_quad)
 				fprintf(os, "%i ", i);
 		});
-
 	fputs("\nngons: ", os);
 	print_sanely(os, this->face_indices_ngon.size(), [&] {
 			for (int i: this->face_indices_ngon)
 				fprintf(os, "%i ", i);
 		});
+
+	auto dump_buffer_info = [&] (const gpu_drawn_buffer& f) -> void {
+		fprintf(os, "VAO id %i, VBO id, %i, size %i, capacity %i\n",
+				f.vertex_array, f.buffer, f.size, f.capacity);
+	};
+	fputs("\nGPU:\nTris:  ", os);
+	dump_buffer_info(this->gpu_tris);
+	fputs("Quads: ", os);
+	dump_buffer_info(this->gpu_quads);
+	fputs("Ngons: ", os);
+	dump_buffer_info(this->gpu_ngons);
 }
 
 } /* namespace map */

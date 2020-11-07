@@ -13,6 +13,9 @@
 		std::cerr << "d: " << (expr) << std::endl; \
 	} while (false)
 
+#define likely(x) __builtin_expect(!!(x), true)
+#define unlikely(x) __builtin_expect(!!(x), false)
+
 [[noreturn]] void fatal (const char* fmt, ...);
 int warning (const char* fmt, ...);
 
