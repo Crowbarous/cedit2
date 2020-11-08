@@ -24,6 +24,14 @@ void app_init ()
 	viewport.set_size(0, 0, 640, 480);
 
 	viewport.map = &some_mesh;
+
+	vec3 tri[3] = { { 1.0, 1.0, 0.0 },
+	                { -1.0, 1.0, 0.0 },
+			{ -1.0, -1.0, 0.0 } };
+	int vert_ids[3];
+	for (int i = 0; i < 3; i++)
+		vert_ids[i] = viewport.map->add_vertex(tri[i]);
+	viewport.map->add_face(vert_ids, 3);
 }
 
 void app_deinit ()

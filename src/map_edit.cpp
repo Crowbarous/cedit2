@@ -262,23 +262,43 @@ void mesh::gpu_drawn_buffer::init (
 		const gpu_vertex* initial_data,
 		int initial_size)
 {
-	this->vertex_array = gl_gen_vertex_array();
-	this->buffer = gl_gen_buffer();
+	assert(this->vertex_array == 0 && this->buffer == 0
+	    && this->mapped == nullptr && this->size == 0 && this->capacity == 0);
 
 	this->size = initial_size;
 	this->capacity = std::max(initial_size, BUFFER_MIN_CAPACITY);
 
+	this->vertex_array = gl_gen_vertex_array();
+	this->buffer = gl_gen_buffer();
+	glBindVertexArray(this->vertex_array);
 	glBindBuffer(GL_ARRAY_BUFFER, this->buffer);
+
+	mesh::gpu_set_attrib_pointers();
+
+	// We can't use `initial_data` to fill the buffer right away,
+	// because it'll try to access `capacity` vertices and segfault
 	glBufferData(GL_ARRAY_BUFFER,
 	             sizeof(gpu_vertex) * this->capacity,
-		     initial_data,
+		     nullptr,
 		     GL_STREAM_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0,
+			sizeof(gpu_vertex) * this->size,
+			initial_data);
 }
 
 void mesh::gpu_drawn_buffer::deinit ()
 {
 	gl_delete_buffer(this->buffer);
 	gl_delete_vertex_array(this->vertex_array);
+	this->size = 0;
+	this->capacity = 0;
+	this->mapped = nullptr;
+}
+
+void mesh::gpu_drawn_buffer::draw () const
+{
+	glBindVertexArray(this->vertex_array);
+	glDrawArrays(GL_TRIANGLES, 0, this->size);
 }
 
 /*
@@ -287,7 +307,7 @@ void mesh::gpu_drawn_buffer::deinit ()
  */
 
 /*
- * !!! This macro relies on those functions
+ * !!! This magic macro relies on those functions
  * defining all those variables under the same names
  * */
 #define DUMP_SINGLE_TRIANGLE(destination, v1, v2, v3) \
@@ -318,7 +338,7 @@ void mesh::gpu_dump_face_quad (gpu_vertex* destination, int face_id) const
 
 	// Split along the 0-2 diagonal, whatever
 	DUMP_SINGLE_TRIANGLE(destination, 0, 1, 2);
-	DUMP_SINGLE_TRIANGLE(destination + 3, 0, 2, 3);
+	DUMP_SINGLE_TRIANGLE(destination+3, 0, 2, 3);
 }
 
 void mesh::gpu_dump_face_ngon (gpu_vertex* destination, int face_id) const
@@ -343,10 +363,41 @@ void mesh::gpu_init ()
 {
 	assert(!this->gpu_is_initialized());
 
-	// TODO!!!
-	this->gpu_tris.init(nullptr, 0);
-	this->gpu_quads.init(nullptr, 0);
-	this->gpu_ngons.init(nullptr, 0);
+	std::vector<gpu_vertex> buffer;
+	int n;
+
+	// Init triangles
+	n = this->face_indices_tri.size();
+	buffer.resize(3 * n);
+	for (int i = 0; i < n; i++) {
+		this->gpu_dump_face_tri(
+				buffer.data() + 3*i,
+				this->face_indices_tri[i]);
+	}
+	this->gpu_tris.init(buffer.data(), buffer.size());
+
+	// Init quads
+	n = this->face_indices_quad.size();
+	buffer.resize(6 * n); // two triangles in each quad
+	for (int i = 0; i < n; i++) {
+		this->gpu_dump_face_quad(
+				buffer.data() + 6*i,
+				this->face_indices_quad[i]);
+	}
+	this->gpu_quads.init(buffer.data(), buffer.size());
+
+	// Init ngons
+	n = this->face_indices_ngon.size();
+	buffer.clear(); // cannot know the size beforehand; grow on the fly
+	for (int i = 0; i < n; i++) {
+		const int face_id = this->face_indices_ngon[i];
+		const int num_tris = this->faces[face_id].num_verts - 2;
+		buffer.resize(buffer.size() + 3*num_tris);
+		this->gpu_dump_face_ngon(
+				buffer.data() + buffer.size() - 3*num_tris,
+				face_id);
+	}
+	this->gpu_ngons.init(buffer.data(), buffer.size());
 }
 
 void mesh::gpu_deinit ()
@@ -366,9 +417,9 @@ void mesh::gpu_sync ()
 
 void mesh::gpu_draw () const
 {
-	// this->gpu_tris.draw();
-	// this->gpu_quads.draw();
-	// this->gpu_ngons.draw();
+	this->gpu_tris.draw();
+	this->gpu_quads.draw();
+	this->gpu_ngons.draw();
 }
 
 /* ==================== UBER FUCTION TO DUMP ALL THE INFO ==================== */
@@ -396,7 +447,6 @@ void mesh::dump_info (FILE* os) const
 	print_sanely(os, this->faces.size(), [&] { this->faces_active.dump_info(os); });
 
 	fputs("Ownership indices:", os);
-
 	fputs("\ntris:  ", os);
 	print_sanely(os, this->face_indices_tri.size(), [&] {
 			for (int i: this->face_indices_tri)
@@ -413,16 +463,18 @@ void mesh::dump_info (FILE* os) const
 				fprintf(os, "%i ", i);
 		});
 
-	auto dump_buffer_info = [&] (const gpu_drawn_buffer& f) -> void {
-		fprintf(os, "VAO id %i, VBO id, %i, size %i, capacity %i\n",
-				f.vertex_array, f.buffer, f.size, f.capacity);
+	fputs("\nGPU:\n", os);
+	auto dump_buffer_info = [&] (const char* tag, const gpu_drawn_buffer& f) {
+		fprintf(os, "%s: VAO id %i, VBO id, %i, "
+			"size: %i vertices (%i bytes), "
+			"capacity: %i vertices (%i bytes)\n",
+			tag, f.vertex_array, f.buffer,
+			f.size, f.size * (int) sizeof(gpu_vertex),
+			f.capacity, f.capacity * (int) sizeof(gpu_vertex));
 	};
-	fputs("\nGPU:\nTris:  ", os);
-	dump_buffer_info(this->gpu_tris);
-	fputs("Quads: ", os);
-	dump_buffer_info(this->gpu_quads);
-	fputs("Ngons: ", os);
-	dump_buffer_info(this->gpu_ngons);
+	dump_buffer_info("Tris ", this->gpu_tris);
+	dump_buffer_info("Quads", this->gpu_quads);
+	dump_buffer_info("Ngons", this->gpu_ngons);
 }
 
 } /* namespace map */
