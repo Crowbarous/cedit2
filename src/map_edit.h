@@ -38,7 +38,8 @@ public:
 private:
 	struct vertex {
 		vec3 position;
-		int faces_referencing;
+		std::vector<int> adj_faces;
+		void remove_adj_face (int);
 	};
 	std::vector<vertex> verts;
 	active_bitset verts_active;
@@ -77,28 +78,30 @@ private:
 		int face_id;
 	};
 
-	bool gpu_is_initialized () const;
-	static void gpu_set_attrib_pointers ();
-	void gpu_dump_face_tri (gpu_vertex*, int face_id) const;
-	void gpu_dump_face_quad (gpu_vertex*, int face_id) const;
-	void gpu_dump_face_ngon (gpu_vertex*, int face_id) const;
-
 	struct gpu_drawn_buffer {
 		GLuint vertex_array = 0;
 		GLuint buffer = 0;
 		gpu_vertex* mapped = nullptr;
-
-		int size; /* Both in `gpu_vertex`es, not in bytes */
-		int capacity;
+		int size; /* In `gpu_vertex`es, not bytes */
+		int capacity; /* Ditto */
+		/* Size is redundant with tri and quad buffers, but not ngon */
 
 		void init (const gpu_vertex* initial_data, int initial_size);
 		void deinit ();
+		void sync ();
+		void resize (int new_size);
 		void draw () const;
 	};
 
 	gpu_drawn_buffer gpu_tris;
 	gpu_drawn_buffer gpu_quads;
 	gpu_drawn_buffer gpu_ngons;
+
+	bool gpu_ready () const;
+	static void gpu_set_attrib_pointers ();
+	void gpu_dump_face_tri (gpu_vertex*, int face_id) const;
+	void gpu_dump_face_quad (gpu_vertex*, int face_id) const;
+	void gpu_dump_face_ngon (gpu_vertex*, int face_id) const;
 };
 
 /*

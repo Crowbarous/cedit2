@@ -57,6 +57,7 @@ std::ostream& debug_print_container (const T& v, std::ostream& s)
 template <class T>
 void replace_with_last (T& container, int index)
 {
+	assert(container.size() > index);
 	if (container.size() > 1)
 		container[index] = container.back();
 	container.pop_back();

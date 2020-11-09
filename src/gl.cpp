@@ -110,6 +110,7 @@ void gl_vertex_attrib_ptr (
 		size_t start_pointer)
 {
 	glEnableVertexAttribArray(attrib_location);
+
 	switch (data_type) {
 	case GL_BYTE:
 	case GL_UNSIGNED_BYTE:
@@ -124,10 +125,16 @@ void gl_vertex_attrib_ptr (
 		glVertexAttribLPointer(attrib_location, num_elements,
 				data_type, stride, (void*) start_pointer);
 		break;
-	default:
+	case GL_FLOAT:
+	case GL_HALF_FLOAT:
 		glVertexAttribPointer(attrib_location, num_elements, data_type,
 				should_normalize, stride, (void*) start_pointer);
 		break;
+	default:
+		// Yes, there are more valid values, such as
+		// GL_UNSIGNED_INT_2_10_10_10_REV; revisit this
+		// if we *really* want to use them
+		assert(false && "See above");
 	}
 }
 

@@ -1,8 +1,22 @@
 #include "map_edit.h"
 #include <cassert>
+#include <algorithm>
 
 namespace map
 {
+
+/*
+ * ======================= MESH IMPLEMENTATION OVERVIEW =======================
+ *   The mesh stores vertices and faces in a generally naive way,
+ * from the CPU perspective.
+ *   However, additionally maintained are (effectively unordered) lists
+ * of those faces which are triangles, quads, and n-gons, respectively.
+ *   Those are used to maintain the GPU buffers - separate for triangles,
+ * quads, and n-gons. Triangles and quads are of fixed size (3 and 6 vertices,
+ * respectively), so whenever we need to delete/move/add a face, it's O(1).
+ * N-gons aren't so nice, but there are generally fewer of them in a mesh.
+ * ============================================================================
+ */
 
 /*
  * Some functions do book keeping that might erroneuously continue
@@ -14,7 +28,6 @@ namespace map
 	                            + sizeof(face::internal_id), \
 		"Struct map::mesh::face changed!!! Revisit all functions " \
 		"with this assertion before updating the macro")
-
 
 mesh::mesh () { }
 
@@ -41,7 +54,7 @@ int mesh::add_vertex (const vec3& position)
 		this->verts.emplace_back();
 
 	this->verts[vert_id] = { .position = position,
-	                         .faces_referencing = 0};
+	                         .adj_faces = { } };
 	return vert_id;
 }
 
@@ -80,7 +93,7 @@ void mesh::construct_face_at_id (
 
 	for (int i = 0; i < vert_num; i++) {
 		assert(this->vert_exists(in_vert_ids[i]));
-		this->verts[in_vert_ids[i]].faces_referencing++;
+		this->verts[in_vert_ids[i]].adj_faces.push_back(face_id);
 		f.vert_ids[i] = in_vert_ids[i];
 	}
 
@@ -110,9 +123,14 @@ void mesh::remove_face (int face_id)
 	for (int i = 0; i < f.num_verts; i++) {
 		const int vert_id = f.vert_ids[i];
 		vertex& v = this->verts[vert_id];
-		assert(v.faces_referencing > 0);
-		v.faces_referencing--;
-		if (v.faces_referencing == 0) {
+
+		const auto iter = std::find(v.adj_faces.begin(),
+		                            v.adj_faces.end(),
+		                            face_id);
+		assert(iter != v.adj_faces.end());
+		replace_with_last(v.adj_faces, iter - v.adj_faces.begin());
+
+		if (v.adj_faces.empty()) {
 			// TODO: For now, just kill "stray" vertices; but since vertex
 			// IDs are user-facing, the user code will not expect vertices
 			// to which it holds IDs to die, so think of something else
@@ -153,11 +171,12 @@ void mesh::remove_vert (int vert_id)
 	this->verts_active.clear_bit(vert_id);
 
 	vertex& v = this->verts[vert_id];
-	assert(v.faces_referencing == 0);
+	assert(v.adj_faces.empty());
 	v = { .position = vec3(0.0),
-	      .faces_referencing = 0 };
+	      .adj_faces = { } };
 }
 
+[[always_inline]]
 vec3 mesh::get_vert_pos (int vert_id) const
 {
 	assert(this->vert_exists(vert_id));
@@ -194,7 +213,7 @@ vec3 mesh::get_face_normal_ngon (int face_id) const
 {
 	// Find the normal "at" each vertex and average those
 	// (no normalization being done meanwhile, the result
-	// ends up weighed by edge length, which seems logical anyway)
+	// ends up weighed by edge length, which makes sense anyway)
 
 	const face& f = this->faces[face_id];
 	const int n = f.num_verts;
@@ -256,7 +275,23 @@ void mesh::gpu_set_attrib_pointers ()
 
 /* gpu_drawn_buffer */
 
-constexpr int BUFFER_MIN_CAPACITY = 32;
+constexpr int BUFFER_MIN_CAPACITY = 128;
+
+constexpr static int buffer_grow_capacity (int c)
+{
+	c *= 3;
+	c /= 2;
+	return c;
+}
+
+constexpr GLbitfield BUFFER_CREATE_FLAGS = 0
+			| GL_DYNAMIC_STORAGE_BIT
+			| GL_MAP_WRITE_BIT
+			| GL_MAP_PERSISTENT_BIT;
+constexpr GLbitfield BUFFER_MAP_FLAGS = 0
+			| GL_MAP_WRITE_BIT
+			| GL_MAP_PERSISTENT_BIT
+			| GL_MAP_FLUSH_EXPLICIT_BIT;
 
 void mesh::gpu_drawn_buffer::init (
 		const gpu_vertex* initial_data,
@@ -266,7 +301,10 @@ void mesh::gpu_drawn_buffer::init (
 	    && this->mapped == nullptr && this->size == 0 && this->capacity == 0);
 
 	this->size = initial_size;
-	this->capacity = std::max(initial_size, BUFFER_MIN_CAPACITY);
+
+	this->capacity = BUFFER_MIN_CAPACITY;
+	while (this->capacity < this->size)
+		this->capacity = buffer_grow_capacity(this->capacity);
 
 	this->vertex_array = gl_gen_vertex_array();
 	this->buffer = gl_gen_buffer();
@@ -275,24 +313,81 @@ void mesh::gpu_drawn_buffer::init (
 
 	mesh::gpu_set_attrib_pointers();
 
-	// We can't use `initial_data` to fill the buffer right away,
-	// because it'll try to access `capacity` vertices and segfault
-	glBufferData(GL_ARRAY_BUFFER,
-	             sizeof(gpu_vertex) * this->capacity,
-		     nullptr,
-		     GL_STREAM_DRAW);
-	glBufferSubData(GL_ARRAY_BUFFER, 0,
-			sizeof(gpu_vertex) * this->size,
-			initial_data);
+	glBufferStorage(GL_ARRAY_BUFFER,
+			sizeof(gpu_vertex) * this->capacity,
+			nullptr, BUFFER_CREATE_FLAGS);
+
+	this->mapped = (gpu_vertex*) glMapBufferRange(
+			GL_ARRAY_BUFFER,
+			0, sizeof(gpu_vertex) * this->capacity,
+			BUFFER_MAP_FLAGS);
+	assert(this->mapped != nullptr);
+
+	if (initial_data != nullptr && initial_size != 0) {
+		memcpy(this->mapped,
+		       initial_data,
+		       sizeof(gpu_vertex) * this->size);
+	}
 }
 
 void mesh::gpu_drawn_buffer::deinit ()
 {
+	glBindBuffer(GL_ARRAY_BUFFER, this->buffer);
+	glUnmapBuffer(GL_ARRAY_BUFFER);
+
 	gl_delete_buffer(this->buffer);
 	gl_delete_vertex_array(this->vertex_array);
 	this->size = 0;
 	this->capacity = 0;
 	this->mapped = nullptr;
+}
+
+void mesh::gpu_drawn_buffer::resize (int new_size)
+{
+	const int old_size = this->size;
+	const int old_capacity = this->capacity;
+
+	if (old_capacity == 0)
+		return this->init(nullptr, new_size);
+
+	this->size = new_size;
+
+	int new_capacity;
+	if (old_capacity >= 1024 && old_capacity > 4 * new_size)
+		new_capacity = BUFFER_MIN_CAPACITY;
+	else if (old_capacity < new_size)
+		new_capacity = old_capacity;
+	else
+		return;
+
+	while (new_capacity < new_size)
+		new_capacity = buffer_grow_capacity(new_capacity);
+
+	GLuint old_buffer = this->buffer;
+	GLuint new_buffer = gl_gen_buffer();
+
+	glUnmapBuffer(old_buffer);
+	glBindBuffer(GL_COPY_READ_BUFFER, old_buffer);
+	glBindBuffer(GL_COPY_WRITE_BUFFER, new_buffer);
+	glBufferStorage(GL_COPY_WRITE_BUFFER,
+			sizeof(gpu_vertex) * new_capacity,
+			nullptr, BUFFER_CREATE_FLAGS);
+	glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER,
+			0, 0, sizeof(gpu_vertex) * old_size);
+	gl_delete_buffer(old_buffer);
+	this->mapped = (gpu_vertex*) glMapBufferRange(
+			GL_COPY_WRITE_BUFFER,
+			0, sizeof(gpu_vertex) * new_capacity,
+			BUFFER_MAP_FLAGS);
+	assert(this->mapped != nullptr);
+	this->buffer = new_buffer;
+	this->capacity = new_capacity;
+}
+
+void mesh::gpu_drawn_buffer::sync ()
+{
+	glBindBuffer(GL_ARRAY_BUFFER, this->buffer);
+	glFlushMappedBufferRange(GL_ARRAY_BUFFER, 0, sizeof(gpu_vertex) * this->size);
 }
 
 void mesh::gpu_drawn_buffer::draw () const
@@ -309,7 +404,7 @@ void mesh::gpu_drawn_buffer::draw () const
 /*
  * !!! This magic macro relies on those functions
  * defining all those variables under the same names
- * */
+ */
 #define DUMP_SINGLE_TRIANGLE(destination, v1, v2, v3) \
 	do { \
 		int _dest_offs = 0; \
@@ -319,7 +414,7 @@ void mesh::gpu_drawn_buffer::draw () const
 			            .normal = (normal), \
 			            .face_id = (face_id) }; \
 		} \
-	} while (0)
+	} while (false)
 
 void mesh::gpu_dump_face_tri (gpu_vertex* destination, int face_id) const
 {
@@ -336,9 +431,18 @@ void mesh::gpu_dump_face_quad (gpu_vertex* destination, int face_id) const
 	const face& f = this->faces[face_id];
 	const vec3 normal = this->get_face_normal_quad(face_id);
 
-	// Split along the 0-2 diagonal, whatever
-	DUMP_SINGLE_TRIANGLE(destination, 0, 1, 2);
-	DUMP_SINGLE_TRIANGLE(destination+3, 0, 2, 3);
+	// Split along whichever diagonal is shorter
+	const float d02 = length_squared(this->get_vert_pos(f.vert_ids[0])
+	                               - this->get_vert_pos(f.vert_ids[2]));
+	const float d13 = length_squared(this->get_vert_pos(f.vert_ids[1])
+	                               - this->get_vert_pos(f.vert_ids[3]));
+	if (d02 < d13) {
+		DUMP_SINGLE_TRIANGLE(destination, 0, 1, 2);
+		DUMP_SINGLE_TRIANGLE(destination+3, 0, 2, 3);
+	} else {
+		DUMP_SINGLE_TRIANGLE(destination, 1, 2, 3);
+		DUMP_SINGLE_TRIANGLE(destination+3, 1, 3, 0);
+	}
 }
 
 void mesh::gpu_dump_face_ngon (gpu_vertex* destination, int face_id) const
@@ -352,16 +456,19 @@ void mesh::gpu_dump_face_ngon (gpu_vertex* destination, int face_id) const
 		DUMP_SINGLE_TRIANGLE(destination + 3*(i-2), 0, i-1, i);
 }
 
-/* The higher-level GPU functions */
+/*
+ * The higher-level GPU functions
+ */
 
-bool mesh::gpu_is_initialized () const
+bool mesh::gpu_ready () const
 {
+	// Just check for some of the IDs being valid
 	return this->gpu_tris.vertex_array != 0;
 }
 
 void mesh::gpu_init ()
 {
-	assert(!this->gpu_is_initialized());
+	assert(!this->gpu_ready());
 
 	std::vector<gpu_vertex> buffer;
 	int n;
@@ -402,7 +509,7 @@ void mesh::gpu_init ()
 
 void mesh::gpu_deinit ()
 {
-	assert(this->gpu_is_initialized());
+	assert(this->gpu_ready());
 
 	this->gpu_tris.deinit();
 	this->gpu_quads.deinit();
@@ -411,8 +518,12 @@ void mesh::gpu_deinit ()
 
 void mesh::gpu_sync ()
 {
-	if (!this->gpu_is_initialized())
+	if (!this->gpu_ready())
 		return this->gpu_init();
+
+	this->gpu_tris.sync();
+	this->gpu_quads.sync();
+	this->gpu_ngons.sync();
 }
 
 void mesh::gpu_draw () const
@@ -425,7 +536,7 @@ void mesh::gpu_draw () const
 /* ==================== UBER FUCTION TO DUMP ALL THE INFO ==================== */
 
 template <typename print_func>
-static void print_sanely (FILE* os, size_t size, print_func f)
+static void print_with_limit (FILE* os, size_t size, print_func f)
 {
 	constexpr static int MAX_SIZE_FOR_OUTPUT = 256;
 	if (size == 0)
@@ -440,32 +551,39 @@ void mesh::dump_info (FILE* os) const
 {
 	fprintf(os, "Mesh at %p:\n", this);
 
-	fprintf(os, "Vertices: %i total, active:\n", (int) this->verts.size());
-	print_sanely(os, this->verts.size(), [&] { this->verts_active.dump_info(os); });
+	fprintf(os, "Vertices: %i total, %i active:\n",
+			(int) this->verts.size(),
+			this->verts_active.popcount());
+	print_with_limit(os, this->verts.size(), [&] { this->verts_active.dump_info(os); });
 
-	fprintf(os, "Faces: %i total, active:\n", (int) this->faces.size());
-	print_sanely(os, this->faces.size(), [&] { this->faces_active.dump_info(os); });
+	assert(this->faces_active.popcount() == this->face_indices_tri.size()
+	                                      + this->face_indices_quad.size()
+	                                      + this->face_indices_ngon.size());
+	fprintf(os, "\nFaces: %i total, %i active:\n",
+			(int) this->faces.size(),
+			this->faces_active.popcount());
+	print_with_limit(os, this->faces.size(), [&] { this->faces_active.dump_info(os); });
 
-	fputs("Ownership indices:", os);
+	fputs("\nOwnership indices:", os);
 	fputs("\ntris:  ", os);
-	print_sanely(os, this->face_indices_tri.size(), [&] {
+	print_with_limit(os, this->face_indices_tri.size(), [&] {
 			for (int i: this->face_indices_tri)
 				fprintf(os, "%i ", i);
 		});
 	fputs("\nquads: ", os);
-	print_sanely(os, this->face_indices_quad.size(), [&] {
+	print_with_limit(os, this->face_indices_quad.size(), [&] {
 			for (int i: this->face_indices_quad)
 				fprintf(os, "%i ", i);
 		});
 	fputs("\nngons: ", os);
-	print_sanely(os, this->face_indices_ngon.size(), [&] {
+	print_with_limit(os, this->face_indices_ngon.size(), [&] {
 			for (int i: this->face_indices_ngon)
 				fprintf(os, "%i ", i);
 		});
 
 	fputs("\nGPU:\n", os);
 	auto dump_buffer_info = [&] (const char* tag, const gpu_drawn_buffer& f) {
-		fprintf(os, "%s: VAO id %i, VBO id, %i, "
+		fprintf(os, "%s: VAO id %i, VBO id %i, "
 			"size: %i vertices (%i bytes), "
 			"capacity: %i vertices (%i bytes)\n",
 			tag, f.vertex_array, f.buffer,

@@ -50,7 +50,7 @@ KEY_FUNC (keybind_change_mesh)
 	static mat4 shape_transform(1.0);
 	static const mat4 shape_transform_increment
 		= glm::rotate(glm::translate(mat4(1.0),
-		                             vec3(0.0, 1.0, 0.0)),
+		                             vec3(1.5, 1.0, 0.0)),
 		              (float) (M_PI / 6.0),
 		              vec3(1.0, 0.0, 0.0));
 	static std::queue<int> faces_to_remove;
