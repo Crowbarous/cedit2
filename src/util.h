@@ -5,7 +5,7 @@
 
 #define DEBUG_EXPR(expr) \
 	do { \
-		std::cerr << #expr " = " << (expr) << std::endl; \
+		std::cerr << "d: " #expr " = " << (expr) << std::endl; \
 	} while (false)
 
 #define DEBUG_MSG(expr) \
@@ -41,7 +41,7 @@ template <class T> T ceil_po2 (T x)
 
 
 template <class T>
-std::ostream& debug_print_container (const T& v, std::ostream& s)
+std::ostream& debug_print_container (const T& v, std::ostream& s = std::cerr)
 {
 	s << "[ ";
 	for (const auto& elem: v)

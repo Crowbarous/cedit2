@@ -1,7 +1,7 @@
 BIN = bin/$(LBITS)
 SRC = src
 
-EXEC = $(BIN)/app
+EXEC = app
 
 WARNINGS = \
 	-Wall \
@@ -11,7 +11,7 @@ WARNINGS = \
 	-Wno-attributes \
 	-Wno-cast-function-type \
 	-Wshadow
-APP-FLAGS = #--opengl-debug
+#APP-FLAGS = --opengl-debug
 
 CC = g++
 override CFLAGS += \
@@ -71,7 +71,7 @@ $(BIN)/glew.o: include/GL/glew.c
 
 run: all
 	@echo "Running:"
-	$(EXEC) $(APP-FLAGS)
+	./$(EXEC) $(APP-FLAGS)
 
 # typos
 ru: run

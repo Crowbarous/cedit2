@@ -65,18 +65,6 @@ TEMPLATE_NSQ VEC_NSQ atovec (const std::string& s)
 	return v;
 }
 
-/*
- * Useful when you don't care about the lengths
- * themselves and only want to compare them
- */
-TEMPLATE_NSQ S length_squared (const VEC_NSQ& v)
-{
-	S r(0.0);
-	for (int i = 0; i < N; i++)
-		r += v[i] * v[i];
-	return r;
-}
-
 #undef TEMPLATE_NSQ
 #undef VEC_NSQ
 

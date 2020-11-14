@@ -49,10 +49,7 @@ KEY_FUNC (keybind_change_mesh)
 
 	static mat4 shape_transform(1.0);
 	static const mat4 shape_transform_increment
-		= glm::rotate(glm::translate(mat4(1.0),
-		                             vec3(1.5, 1.0, 0.0)),
-		              (float) (M_PI / 6.0),
-		              vec3(1.0, 0.0, 0.0));
+		= glm::translate(mat4(1.0), vec3(0.0, 0.0, 0.5));
 	static std::queue<int> faces_to_remove;
 	static constexpr int vert_num = 4;
 	static const vec3 shape[vert_num] = { { 1.0, 1.0, 0.0 },
@@ -67,13 +64,15 @@ KEY_FUNC (keybind_change_mesh)
 			const vec3 v = shape_transform * vec4(shape[i], 1.0);
 			vert_ids[i] = viewport.map->add_vertex(v);
 		}
-		faces_to_remove.push(viewport.map->add_face(vert_ids, vert_num));
+		int face_id = viewport.map->add_face(vert_ids, vert_num);
+		faces_to_remove.push(face_id);
 		shape_transform *= shape_transform_increment;
 		break;
 	}
 	case 1: {
 		if (!faces_to_remove.empty()) {
-			viewport.map->remove_face(faces_to_remove.front());
+			int face_id = faces_to_remove.front();
+			viewport.map->remove_face(face_id);
 			faces_to_remove.pop();
 		}
 		break;

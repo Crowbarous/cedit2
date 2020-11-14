@@ -132,8 +132,8 @@ void gl_vertex_attrib_ptr (
 		break;
 	default:
 		// Yes, there are more valid values, such as
-		// GL_UNSIGNED_INT_2_10_10_10_REV; revisit this
-		// if we *really* want to use them
+		// GL_UNSIGNED_INT_2_10_10_10_REV etc.
+		// Revisit this if we *really* want to use them
 		assert(false && "See above");
 	}
 }
