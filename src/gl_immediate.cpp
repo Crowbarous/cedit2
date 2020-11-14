@@ -1,5 +1,4 @@
 #include "gl_immediate.h"
-#include "gl_glsl.h"
 #include <vector>
 
 namespace imm
@@ -7,7 +6,6 @@ namespace imm
 
 static GLuint vao;
 static GLuint vbo;
-static GLuint program;
 static GLenum current_render_mode;
 static bool after_begin;
 
@@ -51,7 +49,6 @@ void deinit ()
 	buffer.clear();
 	after_begin = false;
 
-	glsl_delete_program(program);
 	glDeleteBuffers(1, &vbo);
 	glDeleteVertexArrays(1, &vao);
 }

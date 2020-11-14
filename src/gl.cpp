@@ -28,8 +28,11 @@ void render_init ()
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, gl_constants::VER_MINOR);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
-	constexpr GLenum windowflags =
-		SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
+	constexpr GLenum windowflags = 0
+			| SDL_WINDOW_OPENGL
+			| SDL_WINDOW_SHOWN
+			| SDL_WINDOW_RESIZABLE
+			| SDL_WINDOW_MAXIMIZED;
 
 	render_state.window = SDL_CreateWindow("app",
 			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
@@ -59,10 +62,11 @@ void render_init ()
 	if (app_opengl_debug) {
 		auto msg_callback = [] (
 				GLenum src, GLenum type, GLuint id,
-				GLuint severity, GLsizei len,
+				GLenum severity, GLsizei len,
 				const char* msg, const void* param)
 			-> void {
-				warning("OpenGL: %s\n", msg);
+				if (severity != GL_DEBUG_SEVERITY_NOTIFICATION)
+					warning("OpenGL: %s\n", msg);
 			};
 		glEnable(GL_DEBUG_OUTPUT);
 		glDebugMessageCallback(msg_callback, nullptr);
