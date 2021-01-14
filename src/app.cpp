@@ -1,17 +1,17 @@
 #include "app.h"
 #include "gl.h"
 #include "gl_glsl.h"
+#include "gl_immediate.h"
 #include "util.h"
 
 viewport3d_t viewport;
-map::mesh some_mesh;
 
 static GLuint mesh_program;
 
 void app_init ()
 {
-	GLuint shaders[2] = { glsl_load_shader("mesh.frag", GL_FRAGMENT_SHADER),
-	                      glsl_load_shader("mesh.vert", GL_VERTEX_SHADER) };
+	GLuint shaders[2] = { glsl_load_shader_file(GL_FRAGMENT_SHADER, "mesh.frag"),
+	                      glsl_load_shader_file(GL_VERTEX_SHADER, "mesh.vert") };
 	mesh_program = glsl_link_program(shaders, 2);
 	for (GLuint& s: shaders)
 		glsl_delete_shader(s);
@@ -21,17 +21,6 @@ void app_init ()
 		  .angles = { 0.0, 180.0, 0.0 },
 		  .fov = 90.0, .aspect = 1.0,
 		  .z_near = 0.5, .z_far = 100.0 };
-	viewport.set_size(0, 0, 640, 480);
-
-	viewport.map = &some_mesh;
-
-	vec3 tri[3] = { { 1.0, 1.0, 0.0 },
-	                { -1.0, 1.0, 0.0 },
-			{ -1.0, -1.0, 0.0 } };
-	int vert_ids[3];
-	for (int i = 0; i < 3; i++)
-		vert_ids[i] = viewport.map->add_vertex(tri[i]);
-	viewport.map->add_face(vert_ids, 3);
 }
 
 void app_deinit ()
@@ -85,9 +74,10 @@ void app_update ()
 
 void viewport3d_t::render () const
 {
-	int dim_w = this->dim_x_high - this->dim_x_low;
-	int dim_h = this->dim_y_high - this->dim_y_low;
-	glViewport(this->dim_x_low, this->dim_y_low, dim_w, dim_h);
+	glViewport(this->pos.x,
+	           render_context.resolution_y - this->pos.y - this->size.y,
+	           this->size.x,
+	           this->size.y);
 	glEnable(GL_CULL_FACE);
 	glFrontFace(GL_CCW);
 	glEnable(GL_DEPTH_TEST);
@@ -98,21 +88,19 @@ void viewport3d_t::render () const
 	glUseProgram(mesh_program);
 	glUniformMatrix4fv(0, 1, GL_FALSE, glm::value_ptr(transform));
 
-	this->map->gpu_sync();
-	this->map->gpu_draw();
+	imm::begin(GL_QUADS);
+	imm::vertex({ -1, -1, 0 });
+	imm::vertex({ 1, -1, 0 });
+	imm::vertex({ 1, 1, 0 });
+	imm::vertex({ -1, 1, 0 });
+	imm::end();
 }
 
-void viewport3d_t::set_size (int xl, int yl, int xh, int yh)
+void viewport3d_t::set_dimension (vec2 p, vec2 s)
 {
-	assert(xh > xl && yh > yl);
+	assert(s.x > 0.0 && s.y > 0.0);
 
-	this->dim_x_low = xl;
-	this->dim_y_low = yl;
-	this->dim_x_high = xh;
-	this->dim_y_high = yh;
-
-	int w = xh - xl;
-	int h = yh - yl;
-
-	this->camera.aspect = (float) w / h;
+	this->pos = p;
+	this->size = s;
+	this->camera.aspect = size.x / size.y;
 }

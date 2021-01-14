@@ -16,7 +16,7 @@ namespace imm
 void init ();
 void deinit ();
 
-void begin (GLenum render_mode);
+void begin (GLenum mode);
 void end ();
 
 void vertex (vec3);

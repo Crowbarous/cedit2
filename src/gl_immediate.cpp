@@ -7,7 +7,6 @@ namespace imm
 
 static GLuint vao;
 static GLuint vbo;
-static GLuint program;
 static GLenum current_render_mode;
 static bool after_begin;
 
@@ -31,13 +30,13 @@ void init ()
 
 	using namespace attrib_loc;
 	gl_vertex_attrib_ptr(POSITION, 3, GL_FLOAT, false,
-			sizeof(vert), offsetof(vert, position));
+	                     sizeof(vert), offsetof(vert, position));
 	gl_vertex_attrib_ptr(NORMAL, 3, GL_FLOAT, true,
-			sizeof(vert), offsetof(vert, normal));
+	                     sizeof(vert), offsetof(vert, normal));
 	gl_vertex_attrib_ptr(TEX_COORD, 2, GL_FLOAT, false,
-			sizeof(vert), offsetof(vert, tex_coord));
+	                     sizeof(vert), offsetof(vert, tex_coord));
 	gl_vertex_attrib_ptr(COLOR, 3, GL_FLOAT, false,
-			sizeof(vert), offsetof(vert, color));
+	                     sizeof(vert), offsetof(vert, color));
 
 	after_begin = false;
 	current_vertex = { .position = vec3(0.0),
@@ -51,7 +50,6 @@ void deinit ()
 	buffer.clear();
 	after_begin = false;
 
-	glsl_delete_program(program);
 	glDeleteBuffers(1, &vbo);
 	glDeleteVertexArrays(1, &vao);
 }
@@ -76,6 +74,9 @@ void end ()
 			sizeof(vert) * buffer.size(),
 			buffer.data(), GL_DYNAMIC_DRAW);
 
+	if (current_render_mode == GL_QUADS)
+		current_render_mode = GL_TRIANGLES;
+
 	glDrawArrays(current_render_mode, 0, buffer.size());
 }
 
@@ -83,7 +84,14 @@ void vertex (vec3 v)
 {
 	assert(after_begin);
 	current_vertex.position = v;
+
 	buffer.push_back(current_vertex);
+
+	unsigned bs = buffer.size();
+	if (current_render_mode == GL_QUADS && bs % 6 == 4) {
+		buffer.push_back(buffer[bs - 4]);
+		buffer.push_back(buffer[bs - 2]);
+	}
 }
 
 void color (vec3 c)

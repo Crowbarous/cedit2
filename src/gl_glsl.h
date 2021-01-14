@@ -3,7 +3,8 @@
 
 #include "gl.h"
 
-GLuint glsl_load_shader (const std::string& file_path, GLenum shader_type);
+GLuint glsl_load_shader_file (GLenum shader_type, const std::string& file_path);
+GLuint glsl_load_shader_string (GLenum shader_type, const char* source);
 void glsl_delete_shader (GLuint& shader);
 
 GLuint glsl_link_program (const GLuint* shaders, int num_shaders);

@@ -1,7 +1,7 @@
 BIN = bin/$(LBITS)
 SRC = src
 
-EXEC = $(BIN)/app
+EXEC = ./app
 
 WARNINGS = \
 	-Wall \
@@ -11,11 +11,13 @@ WARNINGS = \
 	-Wno-attributes \
 	-Wno-cast-function-type \
 	-Wshadow
-APP-FLAGS = #--opengl-debug
+
+#APP-FLAGS += --opengl-debug
+APP-FLAGS += --font-scale=20
 
 CC = g++
 override CFLAGS += \
-	-Og -g \
+	-O1 -g \
 	$(WARNINGS) \
 	--std=gnu++17 \
 	-Isrc \
@@ -42,7 +44,7 @@ else
 # Linux
 
 LIBS += -lSDL2 -lGL -lGLEW -lGLU
-EXEC := $(EXEC).out
+EXEC := $(EXEC)
 CFLAGS += -DLINUX
 
 endif

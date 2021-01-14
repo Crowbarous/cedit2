@@ -20,5 +20,8 @@ struct keybind_t {
 #define KEY_FUNC(name) \
 	void name ([[maybe_unused]] void* KEY_FUNC_USER_DATA, \
 	           [[maybe_unused]] bool KEY_FUNC_PRESSED)
+#define KEY_FUNC_LAMBDA() \
+	+[] ([[maybe_unused]] void* KEY_FUNC_USER_DATA, \
+	     [[maybe_unused]] bool KEY_FUNC_PRESSED) -> void
 
 #endif /* INPUT_H */

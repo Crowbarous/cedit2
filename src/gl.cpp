@@ -1,25 +1,20 @@
 #include "app.h"
 #include "gl.h"
 #include "gl_immediate.h"
+#include "gl_glsl.h"
 #include "util.h"
+#include "gui.h"
 #include <array>
 #include <vector>
 
 bool app_opengl_debug = false;
 int app_opengl_msaa = -1;
-
-struct render_state_t {
-	int res_x;
-	int res_y;
-	SDL_Window* window;
-	SDL_GLContext gl_context;
-};
-static render_state_t render_state;
+render_context_t render_context;
 
 void render_init ()
 {
-	render_state.res_x = 640;
-	render_state.res_y = 480;
+	render_context.resolution_x = 640;
+	render_context.resolution_y = 480;
 
 	if (SDL_Init(SDL_INIT_VIDEO) < 0)
 		fatal("SDL init failed: %s", SDL_GetError());
@@ -28,20 +23,17 @@ void render_init ()
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, gl_constants::VER_MINOR);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
-	constexpr GLenum windowflags =
-		SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
-
-	render_state.window = SDL_CreateWindow("app",
+	render_context.sdl_window = SDL_CreateWindow("app",
 			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-			render_state.res_x,
-			render_state.res_y,
-			windowflags);
+			render_context.resolution_x,
+			render_context.resolution_y,
+			render_context.sdl_window_flags);
 
-	if (render_state.window == nullptr)
+	if (render_context.sdl_window == nullptr)
 		fatal("SDL window creation failed: %s", SDL_GetError());
 
-	render_state.gl_context = SDL_GL_CreateContext(render_state.window);
-	if (render_state.gl_context == nullptr)
+	render_context.sdl_gl_context = SDL_GL_CreateContext(render_context.sdl_window);
+	if (render_context.sdl_gl_context == nullptr)
 		fatal("SDL GL context creation failed: %s", SDL_GetError());
 
 	glewExperimental = true;
@@ -59,7 +51,7 @@ void render_init ()
 	if (app_opengl_debug) {
 		auto msg_callback = [] (
 				GLenum src, GLenum type, GLuint id,
-				GLuint severity, GLsizei len,
+				GLenum severity, GLsizei len,
 				const char* msg, const void* param)
 			-> void {
 				warning("OpenGL: %s\n", msg);
@@ -69,27 +61,35 @@ void render_init ()
 	}
 
 	imm::init();
+
+	render_context.is_initialized = true;
 }
 
 void render_deinit ()
 {
+	render_context.is_initialized = false;
+
 	imm::deinit();
 
-	SDL_GL_DeleteContext(render_state.gl_context);
-	SDL_DestroyWindow(render_state.window);
+	SDL_GL_DeleteContext(render_context.sdl_gl_context);
+	SDL_DestroyWindow(render_context.sdl_window);
 	SDL_Quit();
 }
 
-
 void render_frame ()
 {
-	glViewport(0, 0, render_state.res_x, render_state.res_y);
+	glViewport(0, 0, render_context.resolution_x, render_context.resolution_y);
 	glClearColor(0.0, 0.0, 0.0, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	render_context.is_rendering = true;
 
+	viewport.set_dimension(gui_viewport3d_pos, gui_viewport3d_size);
 	viewport.render();
 
-	SDL_GL_SwapWindow(render_state.window);
+	gui_render_frame();
+
+	SDL_GL_SwapWindow(render_context.sdl_window);
+	render_context.is_rendering = false;
 
 	if (GLenum err = glGetError(); err != 0)
 		warning("OpenGL error: %i (0x%x)", err, err);
@@ -97,8 +97,8 @@ void render_frame ()
 
 void render_resize_window (int w, int h)
 {
-	render_state.res_x = w;
-	render_state.res_y = h;
+	render_context.resolution_x = w;
+	render_context.resolution_y = h;
 }
 
 void gl_vertex_attrib_ptr (

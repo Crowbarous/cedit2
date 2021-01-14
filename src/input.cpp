@@ -1,12 +1,20 @@
-#include "util.h"
-#include "input.h"
-#include "gl.h"
 #include "app.h"
+#include "gl.h"
+#include "gui.h"
+#include "imgui/imgui.h"
+#include "input.h"
+#include "util.h"
 #include <map>
-#include <queue>
 
 bool app_quit;
-bool app_mousegrab = false;
+static bool app_3d_mousegrab;
+
+/* 
+ * App will wait on next OS event and not
+ * render a frame unless this flag is set
+ */
+static bool app_another_frame = false;
+
 std::map<SDL_Scancode, keybind_t> keybinds;
 
 KEY_FUNC (keybind_quit)
@@ -42,56 +50,9 @@ KEY_FUNC (keybind_camera_move)
 	}
 }
 
-KEY_FUNC (keybind_change_mesh)
-{
-	if (!KEY_FUNC_PRESSED)
-		return;
-
-	static mat4 shape_transform(1.0);
-	static const mat4 shape_transform_increment
-		= glm::rotate(glm::translate(mat4(1.0),
-		                             vec3(0.0, 1.0, 0.0)),
-		              (float) (M_PI / 6.0),
-		              vec3(1.0, 0.0, 0.0));
-	static std::queue<int> faces_to_remove;
-	static constexpr int vert_num = 4;
-	static const vec3 shape[vert_num] = { { 1.0, 1.0, 0.0 },
-	                                      { -1.0, 1.0, 0.0 },
-	                                      { -1.0, -1.0, 0.0 },
-	                                      { 1.0, -1.0, 0.0 } };
-
-	switch ((uintptr_t) KEY_FUNC_USER_DATA) {
-	case 0: {
-		int vert_ids[vert_num];
-		for (int i = 0; i < vert_num; i++) {
-			const vec3 v = shape_transform * vec4(shape[i], 1.0);
-			vert_ids[i] = viewport.map->add_vertex(v);
-		}
-		faces_to_remove.push(viewport.map->add_face(vert_ids, vert_num));
-		shape_transform *= shape_transform_increment;
-		break;
-	}
-	case 1: {
-		if (!faces_to_remove.empty()) {
-			viewport.map->remove_face(faces_to_remove.front());
-			faces_to_remove.pop();
-		}
-		break;
-	}
-	}
-}
-
-KEY_FUNC (keybind_print_mesh)
-{
-	if (!KEY_FUNC_PRESSED)
-		return;
-	viewport.map->dump_info(stdout);
-	fflush(stdout);
-}
-
 void mouse_bind (int x, int y, int dx, int dy)
 {
-	if (!app_mousegrab)
+	if (!app_3d_mousegrab)
 		return;
 
 	const float sens = 0.3;
@@ -109,20 +70,16 @@ KEY_FUNC (keybind_toggle_mousegrab)
 {
 	if (!KEY_FUNC_PRESSED)
 		return;
-	app_mousegrab ^= true;
-	SDL_SetRelativeMouseMode(app_mousegrab ? SDL_TRUE : SDL_FALSE);
+	app_3d_mousegrab ^= true;
+	SDL_SetRelativeMouseMode(app_3d_mousegrab ? SDL_TRUE : SDL_FALSE);
 }
 
 void input_init ()
 {
 	app_quit = false;
+	app_3d_mousegrab = false;
 
 	keybinds[SDL_SCANCODE_Q] = { keybind_quit, nullptr };
-
-	keybinds[SDL_SCANCODE_P] = { keybind_change_mesh, (void*) 0 };
-	keybinds[SDL_SCANCODE_L] = { keybind_change_mesh, (void*) 1 };
-
-	keybinds[SDL_SCANCODE_O] = { keybind_print_mesh, nullptr };
 
 	keybinds[SDL_SCANCODE_W] = { keybind_camera_move, (void*) 'f' };
 	keybinds[SDL_SCANCODE_A] = { keybind_camera_move, (void*) 'l' };
@@ -135,53 +92,68 @@ void input_init ()
 	keybinds[SDL_SCANCODE_Z] = { keybind_toggle_mousegrab, nullptr };
 }
 
+
+static void run_keybind (SDL_Scancode scan, bool pressed)
+{
+	auto iter = keybinds.find(scan);
+	if (iter == keybinds.end())
+		return;
+
+	const keybind_t& kb = iter->second;
+	if (kb.callback != nullptr)
+		kb.callback(kb.user_data, pressed);
+}
+
 void input_handle_events ()
 {
 	SDL_Event e;
 
-	if (camera_is_moving()) {
-		// When the camera is moving, we need to generate frames
-		// constantly and not just on events, so don't wait here
-		if (!SDL_PollEvent(&e))
-			return;
-	} else {
-		SDL_WaitEvent(&e);
+	bool can_wait = !camera_is_moving();
+	if (app_another_frame) {
+		can_wait = false;
+		app_another_frame = false;
 	}
 
-	auto run_keybind = [] (SDL_Scancode scan, bool pressed) {
-		auto iter = keybinds.find(scan);
-		if (iter == keybinds.end())
+	if (can_wait) {
+		SDL_WaitEvent(&e);
+	} else {
+		if (!SDL_PollEvent(&e))
 			return;
-		const keybind_t& kb = iter->second;
-		if (kb.callback != nullptr)
-			kb.callback(kb.user_data, pressed);
-	};
+	}
+
+	const auto& io = ImGui::GetIO();
+	const bool imgui_takes_mouse = io.WantCaptureMouse && !app_3d_mousegrab;
+	const bool imgui_takes_kb = io.WantCaptureKeyboard;
+	app_another_frame = (imgui_takes_mouse || imgui_takes_kb);
 
 	do {
+		if (!app_3d_mousegrab)
+			gui_handle_event(e);
+
 		switch (e.type) {
 		case SDL_QUIT:
 			app_quit = true;
 			break;
 		case SDL_WINDOWEVENT:
-			if (e.window.event == SDL_WINDOWEVENT_RESIZED) {
-				int w = e.window.data1;
-				int h = e.window.data2;
-				render_resize_window(w, h);
-				viewport.set_size(0, 0, w, h);
-			}
+			if (e.window.event == SDL_WINDOWEVENT_RESIZED)
+				render_resize_window(e.window.data1, e.window.data2);
 			break;
 		case SDL_KEYDOWN:
-			if (!e.key.repeat)
+			if (!imgui_takes_kb)
 				run_keybind(e.key.keysym.scancode, true);
 			break;
 		case SDL_KEYUP:
-			run_keybind(e.key.keysym.scancode, false);
+			if (!imgui_takes_kb)
+				run_keybind(e.key.keysym.scancode, false);
 			break;
 		case SDL_MOUSEMOTION:
-			mouse_bind(e.motion.x, e.motion.y,
-					e.motion.xrel, e.motion.yrel);
+			if (!imgui_takes_mouse) {
+				mouse_bind(e.motion.x, e.motion.y,
+				           e.motion.xrel, e.motion.yrel);
+			}
 			break;
 		}
+
 	} while (SDL_PollEvent(&e));
 }
 
@@ -202,6 +174,7 @@ struct cmdline_flag_t {
 const static cmdline_flag_t cmdline_flags[] = {
 	{ "opengl-debug", BOOL_TRUE, &app_opengl_debug },
 	{ "opengl-msaa", INT_VAL, &app_opengl_msaa },
+	{ "font-scale", FLOAT_VAL, &app_font_scale },
 };
 
 constexpr int cmdline_flag_nr = sizeof(cmdline_flags) / sizeof(cmdline_flag_t);

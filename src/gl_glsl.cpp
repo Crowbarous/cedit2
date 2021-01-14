@@ -8,6 +8,43 @@ static const char* GLSL_PROLOGUE =
 	"#version 330 core\n"
 	"#extension GL_ARB_explicit_uniform_location: require\n";
 
+static GLuint glsl_load_shader_low (
+		GLenum shader_type, 
+		const char* src,
+		const char* reported_file_path)
+{
+	assert(shader_type == GL_FRAGMENT_SHADER
+	    || shader_type == GL_VERTEX_SHADER
+	    || shader_type == GL_GEOMETRY_SHADER);
+
+	GLuint id = glCreateShader(shader_type);
+	if (id == 0)
+		fatal("Shader %s: failed to create a new shader", reported_file_path);
+
+	constexpr int NUM_LINES = 2;
+	const char* lines[NUM_LINES] = { GLSL_PROLOGUE, src };
+	glShaderSource(id, NUM_LINES, lines, nullptr);
+	glCompileShader(id);
+
+	int success = 0;
+	glGetShaderiv(id, GL_COMPILE_STATUS, &success);
+
+	if (success)
+		return id;
+
+	int log_length = 0;
+	glGetShaderiv(id, GL_INFO_LOG_LENGTH, &log_length);
+	char log[log_length + 1];
+	log[log_length] = '\0';
+	glGetShaderInfoLog(id, log_length, &log_length, log);
+
+	fatal("Shader %s failed to compile. Log:\n%s", reported_file_path, log);
+}
+
+GLuint glsl_load_shader_string (GLenum shader_type, const char* src)
+{
+	return glsl_load_shader_low(shader_type, src, "<source string>");
+}
 
 static void glsl_line_directive (
 		std::ostringstream& src,
@@ -59,41 +96,17 @@ static void glsl_append_source (
 	}
 }
 
-GLuint glsl_load_shader (const std::string& file_path, GLenum shader_type)
+GLuint glsl_load_shader_file (GLenum shader_type, const std::string& file_path)
 {
 	assert(shader_type == GL_FRAGMENT_SHADER
 	    || shader_type == GL_VERTEX_SHADER
 	    || shader_type == GL_GEOMETRY_SHADER);
 
-	std::ostringstream src(GLSL_PROLOGUE, std::ios_base::app);
+	std::ostringstream src("", std::ios_base::app);
 	glsl_append_source(file_path, file_path, src, 0);
 
-	GLuint id = glCreateShader(shader_type);
-	if (id == 0) {
-		fatal("Shader %s: failed to create a new shader",
-				file_path.c_str());
-	}
-
 	std::string s = src.str();
-	const char* ptr = s.c_str();
-
-	glShaderSource(id, 1, &ptr, nullptr);
-	glCompileShader(id);
-
-	int success = 0;
-	glGetShaderiv(id, GL_COMPILE_STATUS, &success);
-
-	if (success)
-		return id;
-
-	int log_length = 0;
-	glGetShaderiv(id, GL_INFO_LOG_LENGTH, &log_length);
-	char log[log_length+1];
-	log[log_length] = '\0';
-	glGetShaderInfoLog(id, log_length, &log_length, log);
-
-	fatal("Shader %s failed to compile. Log:\n%s",
-			file_path.c_str(), log);
+	return glsl_load_shader_low(shader_type, s.c_str(), file_path.c_str());
 }
 
 void glsl_delete_shader (GLuint& shader)

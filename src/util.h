@@ -16,27 +16,20 @@
 #define likely(x) __builtin_expect(!!(x), true)
 #define unlikely(x) __builtin_expect(!!(x), false)
 
-[[noreturn]] void fatal (const char* fmt, ...);
-int warning (const char* fmt, ...);
+void fatal [[noreturn]] (const char* fmt, ...);
+void warning (const char* fmt, ...);
 
-template <class T> constexpr bool always_false = false;
-
-template <class T> T ceil_po2 (T x)
+template <class T>
+T ceil_po2 (T x)
 {
 	if (x == 1)
 		return 1;
-
-	constexpr bool _32 = (sizeof(T) == 4);
-	constexpr bool _64 = (sizeof(T) == 8);
-	static_assert(std::is_integral_v<T> && (_32 || _64),
-			"ceil_po2() argument must be 32- or 64-bit int");
-
-	if constexpr (_32)
-		return 1 << (32 - __builtin_clz(x-1));
-	else if constexpr (_64)
-		return 1 << (64 - __builtin_clzl(x-1));
+	if constexpr (sizeof(T) == 4)
+		return T{1} << (32 - __builtin_clz(x - 1));
+	else if constexpr (sizeof(T) == 8)
+		return T{1} << (64 - __builtin_clzl(x - 1));
 	else
-		static_assert(always_false<T>, "Called ceil_po2 on an invalid type");
+		static_assert(!sizeof(T), "ceil_po2() argument must be 32 or 64 bit int");
 }
 
 
@@ -49,11 +42,6 @@ std::ostream& debug_print_container (const T& v, std::ostream& s)
 	return s << ']';
 }
 
-/*
- * Remove an element from a vector by replacing it with last
- * and popping last. Aimed at std::vector, of course,
- * but templated so as to avoid including <vector> and maybe
- */
 template <class T>
 void replace_with_last (T& container, int index)
 {
@@ -63,8 +51,7 @@ void replace_with_last (T& container, int index)
 }
 
 
-bool str_any_of (const char* needle,
-		std::initializer_list<const char*> haystack);
+bool str_any_of (const char* needle, std::initializer_list<const char*> haystack);
 
 #endif /* UTIL_H */
 

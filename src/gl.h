@@ -5,6 +5,21 @@
 #include <GL/glew.h>
 #include <SDL2/SDL_opengl.h>
 
+struct render_context_t {
+	int resolution_x;
+	int resolution_y;
+
+	static constexpr uint32_t sdl_window_flags = 0
+				| SDL_WINDOW_OPENGL
+				| SDL_WINDOW_RESIZABLE;
+	SDL_Window* sdl_window;
+	SDL_GLContext sdl_gl_context;
+
+	bool is_initialized = false;
+	bool is_rendering;
+};
+extern render_context_t render_context;
+
 /* Various constants regarding OpenGL */
 namespace gl_constants
 {
